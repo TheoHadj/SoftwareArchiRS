@@ -4,3 +4,41 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# --- Web & Async ---
+# Framework web moderne et modulaire
+axum = "0.7" 
+# Runtime asynchrone pour faire tourner le serveur
+tokio = { version = "1.0", features = ["full"] } 
+# Pour la gestion des formats de données (JSON)
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# --- Sérialisation & Validation ---
+# L'incontournable pour transformer tes structs en JSON et inversement
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# Pour valider tes entrées (ex: format d'email, longueur de texte)
+validator = { version = "0.16", features = ["derive"] }
+
+# --- Base de Données & Persistance ---
+# Pour SQLite avec vérification des requêtes à la compilation
+sqlx = { version = "0.7", features = ["runtime-tokio", "tls-rustls", "sqlite", "chrono", "uuid", "runtime-tokio-rustls"] }
+
+# --- Outils de Domaine (DDD) ---
+# Gestion des dates (indispensable pour le sujet E sur les congés) [cite: 72]
+chrono = { version = "0.4", features = ["serde"] }
+# Identifiants uniques pour tes Entités
+uuid = { version = "1.0", features = ["v4", "serde"] }
+# Pour définir proprement tes erreurs métier (DomainError)
+thiserror = "1.0"
+# Nécessaire pour définir des Traits asynchrones (Repositories)
+async-trait = "0.1"
+
+# --- Logs & Debug ---
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[dev-dependencies]
+# Pour créer tes Mocks et Stubs dans tes tests 
+mockall = "0.12"
+# Pour tester ton API de manière simplifiée
+reqwest = { version = "0.11", features = ["json"] }
