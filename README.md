@@ -1,62 +1,76 @@
-# Système de Gestion des Congés (SIRH) - Architecture Logicielle
+📅 Système de Gestion des Congés (SIRH) - Architecture Hexagonale
+👤 Identification
+Apprenant : [Ton Nom / Prénom]
 
-## 👤 Identification
-- **Apprenant** : [Votre Nom / Prénom]
-- [cite_start]**Formation** : EPSI Ingénierie 1 EISI [cite: 1]
-- [cite_start]**Intervenant à ajouter sur GitHub** : `3rgo` [cite: 27]
+Formation : EPSI Ingénierie 1 EISI
 
----
+Intervenant GitHub : 3rgo
 
-## 🎯 Sujet et Contexte
-[cite_start]Ce projet a été réalisé dans le cadre du module **Architectures Applicatives**[cite: 1]. [cite_start]Le but est de mettre en pratique les concepts de **Domain Driven Design (DDD)** et de **Clean Architecture** à travers la création d'une API REST robuste[cite: 3, 7, 12].
+🎯 Présentation du Projet
+Ce projet implémente un système de gestion des congés et des heures supplémentaires. L'objectif principal est de démontrer une séparation stricte entre la logique métier (le "Domaine") et les détails techniques (l'infrastructure), tout en utilisant la puissance du typage de Rust.
 
-### [cite_start]Sujet Choisi : Sujet E - Système de Gestion des Congés (SIRH) [cite: 68]
-L'application permet aux employés de gérer leurs absences et heures supplémentaires avec des règles métier strictes :
-- [cite_start]**Calcul des jours réels** : Déduction automatique des week-ends et jours fériés[cite: 72].
-- [cite_start]**Urgences Familiales** : Seul motif permettant une pose de congé le jour même[cite: 73].
-- [cite_start]**Flux d'approbation** : Validation par le manager pour les heures supplémentaires (paiement ou récupération)[cite: 74].
+Sujet : Gestion des Congés & SIRH
+L'application gère les demandes de congés et les déclarations d'heures supplémentaires avec des règles de gestion réelles :
 
----
+Calcul intelligent : Déduction automatique des week-ends et jours fériés pour obtenir les jours "réels".
 
-## 🛠 Contraintes Techniques Respectées
-[cite_start]Conformément au barème de notation[cite: 34, 35]:
+Contrôle d'anticipation : Interdiction de poser un congé pour le jour même, sauf motif "Urgence Familiale".
 
-### [cite_start]1. Coeur Métier - DDD [cite: 12]
-Le domaine est isolé de toute dépendance technique et contient :
-- [cite_start]**3 Entités** : `Employee`, `LeaveRequest`, `OvertimeDeclaration`[cite: 17].
-- [cite_start]**2 Value Objects** : `DateRange` (logique de calcul des jours ouvrés) et `LeaveType`[cite: 18].
+Flux d'approbation : Les heures supplémentaires nécessitent une validation manager avant d'être converties en paiement ou récupération.
 
-### [cite_start]2. Design Patterns (hors MVC) [cite: 20]
-- [cite_start]**Repository Pattern** : Utilisation de Traits Rust pour rendre la persistance interchangeable entre **SQLite** et un système de **Fichiers**[cite: 10].
-- **Strategy Pattern** : Pour le calcul dynamique des jours fériés (permettant d'injecter différentes règles de calendrier).
+🏗️ Architecture & Design Patterns
+Le projet suit les principes de l'Architecture Hexagonale (Ports & Adapters) pour garantir que le cœur métier reste indépendant des frameworks et des bases de données.
 
-### [cite_start]3. Testabilité [cite: 21, 22]
-- **Stub** : Utilisé pour simuler le calendrier des jours fériés dans les tests de calcul de durée.
-- **Mock** : Utilisé pour vérifier que le `OvertimeRepository` n'est appelé que si les règles de validation manager sont satisfaites.
+1. DDD (Domain Driven Design)
+Entités (3) : Employee, LeaveRequest, OvertimeDeclaration.
 
-### [cite_start]4. Architecture Globale & SoC [cite: 11]
-L'application suit une **Architecture Hexagonale** :
-- `domain/` : Logique pure, entités et interfaces (Traits).
-- `application/` : Cas d'utilisation (Services).
-- `infrastructure/` : Implémentations concrètes (SQLite via SQLx, File System).
-- [cite_start]`presentation/` : API REST (Axum)[cite: 7].
+Value Objects (2) :
 
----
+DateRange : Encapsule la logique complexe de calcul des jours ouvrés.
 
-## 🚀 Technologies utilisées
-- [cite_start]**Langage** : Rust (pour la sûreté du typage et la gestion des états)[cite: 23].
-- **Framework Web** : Axum.
-- [cite_start]**Persistance** : SQLite (via SQLx) ou Fichiers JSON (interchangeable)[cite: 10, 23].
-- **Validation** : Serde & Validator.
+LeaveType : Gère les invariants liés aux types de congés (RTT, Congé Payé, Urgence).
 
----
+Invariants métier : La validation des règles est faite au sein du domaine, rendant impossible la création d'un état invalide.
 
-## 📂 Installation et Lancement
+2. Design Patterns implémentés
+Repository Pattern : Les accès aux données sont abstraits par des Traits Rust. Cela permet l'interchangeabilité entre une persistance SQLite et un système de Fichiers JSON.
 
-### Prérequis
-- Rust & Cargo installés.
-- SQLite (optionnel, géré par le driver).
+Strategy Pattern : Utilisé pour le calcul des jours fériés (HolidayStrategy), permettant de changer de calendrier (ex: France, International) sans modifier le code de calcul des congés.
 
-### Lancer l'application
-```bash
+3. Tests & Qualité
+Stub : Utilisé pour injecter un calendrier fixe dans les tests de calcul de dates.
+
+Mock : Utilisé pour vérifier que le système n'enregistre pas une demande d'heures supplémentaires tant que le choix (Paiement/Récupération) n'est pas validé.
+
+🛠️ Stack Technique
+Langage : Rust (Édition 2021)
+
+API REST : Axum (basé sur Tokio)
+
+Persistance : SQLx (SQLite) ou Filesystem (JSON)
+
+Séreilisation : Serde
+
+📂 Structure du Code
+Plaintext
+src/
+├── core/                # L'Hexagone (Logique Pure)
+│   ├── domain/          # Entités, Value Objects, Logic
+│   └── application/     # Ports (Interfaces) & Cas d'utilisation
+├── adapters/            # L'Extérieur (Détails)
+│   ├── incoming/        # API REST (Axum Handlers)
+│   └── outgoing/        # Persistance (SQLite & JSON)
+└── main.rs              # Assemblage (Injection de dépendances)
+🚀 Installation
+Cloner le dépôt :
+
+Bash
+git clone [URL_DU_REPO]
+Lancer les tests (Vérification des Mocks/Stubs) :
+
+Bash
+cargo test
+Démarrer l'API :
+
+Bash
 cargo run
