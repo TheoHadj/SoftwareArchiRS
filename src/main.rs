@@ -36,8 +36,8 @@ use adapters::incoming::http_handlers::{
 use adapters::outgoing::mock_repository::MockRepository;
 use adapters::outgoing::sqlite_repository::SqliteRepository;
 use core::application::ports::EmployeeRepository;
-use core::application::ports::LeaveRepository;
-use core::application::services::LeaveService;
+use core::application::ports::AbsenceRepository;
+use core::application::services::AbsenceService;
 use core::domain::entities::Employe;
 
 #[tokio::main]
@@ -49,13 +49,13 @@ async fn main() {
 
     // 2. Préparation des variables qui vont tenir nos bases de données
     let employee_repo: Arc<dyn EmployeeRepository>;
-    let leave_repo: Arc<dyn LeaveRepository>;
+    let abs_repo: Arc<dyn AbsenceRepository>;
 
     if use_mock {
         println!("🛠️ MODE TEST : Base de données en mémoire (Mock)");
         let mock = Arc::new(adapters::outgoing::mock_repository::MockRepository::new());
         employee_repo = mock.clone();
-        leave_repo = mock;
+        abs_repo = mock;
     } else {
         println!("🛢️ MODE PRODUCTION : Connexion à SQLite...");
 
@@ -106,16 +106,16 @@ async fn main() {
         let sqlite = Arc::new(adapters::outgoing::sqlite_repository::SqliteRepository::new(pool));
 
         employee_repo = sqlite.clone();
-        leave_repo = sqlite;
+        abs_repo = sqlite;
     }
 
     // 3. On injecte les repositories choisis dans le service
-    let leave_service = Arc::new(core::application::services::LeaveService::new(
+    let abs_service = Arc::new(core::application::services::AbsenceService::new(
         employee_repo,
-        leave_repo,
+        abs_repo
     ));
 
-    let state = AppState { leave_service };
+    let state = AppState { abs_service };
 
     // 4. Lancement du serveur Axum (Le reste de ton code ne bouge pas)
     let app = Router::new()

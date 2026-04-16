@@ -4,7 +4,7 @@ use sqlx::Row;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::core::application::ports::{EmployeeRepository, LeaveRepository};
+use crate::core::application::ports::{EmployeeRepository, AbsenceRepository};
 use crate::core::domain::entities::{DemandeConge, Employe};
 use crate::core::domain::error::ErreurMetier;
 
@@ -97,7 +97,7 @@ impl EmployeeRepository for SqliteRepository {
 }
 
 #[async_trait]
-impl LeaveRepository for SqliteRepository {
+impl AbsenceRepository for SqliteRepository {
     async fn get_by_id(&self, id_employe: Uuid) -> Result<Vec<DemandeConge>, ErreurMetier> {
         let rows = sqlx::query(
             "SELECT id, id_employe, periode, type_absence FROM conges WHERE id_employe = ?",

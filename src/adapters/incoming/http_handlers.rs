@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::core::application::services::LeaveService; // Ou use_cases::LeaveService si tu as renommé !
+use crate::core::application::services::AbsenceService;
 use crate::core::domain::value_objects::{MomentDebut, MomentFin, Periode, TypeAbsence};
 
 // Le DTO pour un seul congé
@@ -30,7 +30,7 @@ pub struct EmployeDetailResponseDto {
 /// à travers toutes nos routes Axum.
 #[derive(Clone)]
 pub struct AppState {
-    pub leave_service: Arc<LeaveService>,
+    pub abs_service: Arc<AbsenceService>,
 }
 
 // --------------------------------------------------------
@@ -80,7 +80,7 @@ pub async fn poser_conge_handler(
 
     // 2. Appel du Cas d'Utilisation (Le Service)
     let resultat_service = state
-        .leave_service
+        .abs_service
         .poser_un_conge(payload.id_employe, periode, payload.type_absence)
         .await;
 
@@ -91,14 +91,9 @@ pub async fn poser_conge_handler(
         Ok(demande) => {
             println!("OK match res");
 
-            // Pour l'exemple, on simule l'absence de jours fériés.
-            // En vrai, tu passerais l'instance de ta stratégie ici.
-            let jours_feries_vides = vec![];
-            let jours_deduits = demande.periode.calculer_jours_reels(&jours_feries_vides);
-
             let response = PoserCongeResponseDto {
-                id_demande: demande.id,
-                jours_deduits,
+                id_demande: demande.0.id,
+                jours_deduits : demande.1,
                 message: "Demande de congé enregistrée avec succès.".to_string(),
             };
             (StatusCode::CREATED, Json(response)).into_response()
@@ -122,7 +117,7 @@ pub struct EmployeResponseDto {
 
 // 2. Le Contrôleur
 pub async fn lister_employes_handler(State(state): State<AppState>) -> impl IntoResponse {
-    match state.leave_service.lister_employes().await {
+    match state.abs_service.lister_employes().await {
         Ok(employes) => {
             // On transforme nos Entités métier en DTOs pour le Web
             let dtos: Vec<EmployeResponseDto> = employes
@@ -148,7 +143,7 @@ pub async fn lister_employes_by_id_handler(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    match state.leave_service.lister_employes_by_id(id).await {
+    match state.abs_service.lister_employes_by_id(id).await {
         Ok(Some((employe, conges))) => {
             // On transforme nos entités métier en DTOs
             let conges_dto = conges

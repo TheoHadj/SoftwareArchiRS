@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-use crate::core::application::ports::{EmployeeRepository, LeaveRepository};
+use crate::core::application::ports::{EmployeeRepository, AbsenceRepository};
 use crate::core::domain::entities::{DemandeConge, Employe};
 use crate::core::domain::error::ErreurMetier;
 
@@ -52,7 +52,7 @@ impl EmployeeRepository for MockRepository {
 }
 
 #[async_trait]
-impl LeaveRepository for MockRepository {
+impl AbsenceRepository for MockRepository {
     async fn save(&self, demande: DemandeConge) -> Result<(), ErreurMetier> {
         let mut db = self.conges.lock().unwrap();
         db.insert(demande.id, demande);

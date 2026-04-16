@@ -14,7 +14,7 @@ pub trait EmployeeRepository: Send + Sync {
 
 // Port pour gérer les demandes de congés
 #[async_trait]
-pub trait LeaveRepository: Send + Sync {
+pub trait AbsenceRepository: Send + Sync {
     async fn save(&self, demande: DemandeConge) -> Result<(), ErreurMetier>;
 
     async fn get_by_id(&self, id_employe: Uuid) -> Result<Vec<DemandeConge>, ErreurMetier>;

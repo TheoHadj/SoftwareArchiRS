@@ -16,6 +16,9 @@ pub enum ErreurMetier {
     )]
     PeriodeInvalide,
 
+    #[error("Vous n'avez pas assez de congés disponible")]
+    CongeDepasse,
+
     #[error("Employé introuvable")]
     EmployeIntrouvable,
 
