@@ -3,7 +3,7 @@ use uuid::Uuid;
 use chrono::Local;
 
 use crate::core::application::ports::{EmployeeRepository, LeaveRepository};
-use crate::core::domain::entities::DemandeConge;
+use crate::core::domain::entities::{DemandeConge, Employe};
 use crate::core::domain::error::ErreurMetier;
 use crate::core::domain::value_objects::{Periode, TypeAbsence};
 
@@ -35,7 +35,7 @@ impl LeaveService {
         // 1. Récupérer l'employé depuis le Port sortant
         // Si find_by_id renvoie None, on lève une erreur (ici on triche un peu en réutilisant une erreur métier existante pour l'exemple)
         let mut employe = self.employee_repo.find_by_id(id_employe).await?
-            .ok_or(ErreurMetier::PeriodeInvalide)?; // En vrai on ferait une ErreurMetier::EmployeIntrouvable
+            .ok_or(ErreurMetier::EmployeIntrouvable)?; // En vrai on ferait une ErreurMetier::EmployeIntrouvable
 
         let aujourd_hui = Local::now().date_naive();
 
@@ -58,4 +58,10 @@ impl LeaveService {
         // 4. Retourner le résultat à l'API
         Ok(nouvelle_demande)
     }
+
+    pub async fn lister_employes(&self) -> Result<Vec<Employe>, ErreurMetier> {
+        // Le service délègue simplement au repository
+        self.employee_repo.get_all().await
+    }
+
 }

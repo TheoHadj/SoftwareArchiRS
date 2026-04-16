@@ -9,6 +9,7 @@ use crate::core::domain::error::ErreurMetier;
 pub trait EmployeeRepository: Send + Sync {
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Employe>, ErreurMetier>;
     async fn save(&self, employe: Employe) -> Result<(), ErreurMetier>;
+    async fn get_all(&self) -> Result<Vec<Employe>, ErreurMetier>;
 }
 
 // Port pour gérer les demandes de congés

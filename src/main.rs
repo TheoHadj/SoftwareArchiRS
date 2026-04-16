@@ -1,4 +1,4 @@
-use axum::{routing::post, Router};
+use axum::{routing::{get, post}, Router};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use uuid::Uuid;
@@ -28,7 +28,7 @@ mod adapters {
 use adapters::outgoing::mock_repository::MockRepository;
 use adapters::outgoing::sqlite_repository::SqliteRepository;
 use core::application::services::LeaveService;
-use adapters::incoming::http_handlers::{poser_conge_handler, AppState};
+use adapters::incoming::http_handlers::{poser_conge_handler, lister_employes_handler, AppState};
 use core::domain::entities::Employe;
 
 #[tokio::main]
@@ -84,6 +84,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/conges", post(poser_conge_handler))
+        .route("/employes", get(lister_employes_handler))
         .with_state(state);
 
     // 4. Lancement du serveur

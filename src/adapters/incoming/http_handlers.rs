@@ -59,11 +59,16 @@ pub async fn poser_conge_handler(
         payload.date_fin,
         payload.moment_fin,
     );
+    println!("Périoderes : {:?}", periode_result);
+
 
     let periode = match periode_result {
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     };
+
+    println!("Période : {:?}", periode);
+
 
     // 2. Appel du Cas d'Utilisation (Le Service)
     let resultat_service = state.leave_service.poser_un_conge(
@@ -72,9 +77,14 @@ pub async fn poser_conge_handler(
         payload.type_absence,
     ).await;
 
+    println!("result svc : {:?}", resultat_service);
+
+
     // 3. Gestion de la réponse (Traduction du Domaine vers le Web)
     match resultat_service {
         Ok(demande) => {
+            println!("OK match res");
+
             // Pour l'exemple, on simule l'absence de jours fériés. 
             // En vrai, tu passerais l'instance de ta stratégie ici.
             let jours_feries_vides = vec![]; 
@@ -88,8 +98,40 @@ pub async fn poser_conge_handler(
             (StatusCode::CREATED, Json(response)).into_response()
         }
         Err(erreur_metier) => {
+            println!("PAS OK match res");
+
             // Toutes nos erreurs métier sont des BAD_REQUEST ou CONFLICT
             (StatusCode::BAD_REQUEST, erreur_metier.to_string()).into_response()
+        }
+    }
+}
+// 1. Le DTO (Ce qu'on va renvoyer en JSON)
+#[derive(Serialize)]
+pub struct EmployeResponseDto {
+    pub id: Uuid,
+    pub nom: String,
+    pub prenom: String,
+    // On peut cacher des infos internes comme le quota si on veut !
+}
+
+// 2. Le Contrôleur
+pub async fn lister_employes_handler(
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    
+    match state.leave_service.lister_employes().await {
+        Ok(employes) => {
+            // On transforme nos Entités métier en DTOs pour le Web
+            let dtos: Vec<EmployeResponseDto> = employes.into_iter().map(|e| EmployeResponseDto {
+                id: e.id,
+                nom: e.nom,
+                prenom: e.prenom,
+            }).collect();
+            
+            (StatusCode::OK, Json(dtos)).into_response()
+        }
+        Err(_) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, "Erreur serveur".to_string()).into_response()
         }
     }
 }

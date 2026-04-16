@@ -41,6 +41,13 @@ impl EmployeeRepository for MockRepository {
         db.insert(employe.id, employe);
         Ok(())
     }
+
+    async fn get_all(&self) -> Result<Vec<Employe>, ErreurMetier> {
+        let lock = self.employes.lock().unwrap(); // On ouvre le cadenas de la RAM
+        // On prend toutes les valeurs du HashMap, on les clone, et on en fait une Liste (Vec)
+        let list: Vec<Employe> = lock.values().cloned().collect(); 
+        Ok(list)
+    }
 }
 
 #[async_trait]

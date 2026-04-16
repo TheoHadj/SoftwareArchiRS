@@ -13,4 +13,10 @@ pub enum ErreurMetier {
     
     #[error("La période saisie est invalide (dates incohérentes ou configuration de demi-journée impossible).")]
     PeriodeInvalide,
+    
+    #[error("Employé introuvable")]
+    EmployeIntrouvable,
+
+    #[error("EngineError")]
+    EngineError,
 }

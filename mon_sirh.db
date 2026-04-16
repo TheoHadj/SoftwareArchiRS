@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS employes (
+    id TEXT PRIMARY KEY,
+    nom TEXT NOT NULL,
+    prenom TEXT NOT NULL,
+    quota_urgence_familiale INTEGER NOT NULL
+);
+
+INSERT INTO employes (id, nom, prenom, quota_urgence_familiale) 
+VALUES ('f098ab96-3799-4481-b0d5-d0c3bfe509b0', 'Théo', 'Hadj', 3);
+

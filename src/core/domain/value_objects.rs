@@ -38,16 +38,26 @@ impl Periode {
         date_fin: NaiveDate,
         moment_fin: MomentFin,
     ) -> Result<Self, ErreurMetier> {
-        if date_fin < date_debut {
+    
+        println!("========================================");
+        println!("🔍 DEBUG Periode::nouvelle");
+        println!("▶️ Début : {} ({:?})", date_debut, moment_debut);
+        println!("⏹️ Fin   : {} ({:?})", date_fin, moment_fin);
+        println!("🧮 Test mathématique (début > fin) : {}", date_debut > date_fin);
+        println!("========================================");
+
+        if date_debut > date_fin {
+            println!("❌ ERREUR : La date de début est après la date de fin !");
             return Err(ErreurMetier::PeriodeInvalide);
         }
 
-        if date_debut == date_fin
-            && moment_debut == MomentDebut::ApresMidi
-            && moment_fin == MomentFin::Midi
+        if date_debut == date_fin && moment_debut == MomentDebut::ApresMidi && moment_fin == MomentFin::Midi
         {
+            println!("❌ ERREUR : Même jour, mais on commence l'aprem pour finir le midi !");
             return Err(ErreurMetier::PeriodeInvalide);
         }
+
+        println!("OKOKOK!");
 
         Ok(Self {
             date_debut,
