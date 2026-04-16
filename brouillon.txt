@@ -79,3 +79,6 @@ src/
 
 
 conv : https://gemini.google.com/app/7c4c83550713bc3e?hl=fr
+
+
+curl.exe -X POST http://127.0.0.1:3000/conges -H "Content-Type: application/json" -d "{\"id_employe\": \"f098ab96-3799-4481-b0d5-d0c3bfe509b0\", \"date_debut\": \"2026-05-18\", \"moment_debut\": \"Matin\", \"date_fin\": \"2026-05-22\", \"moment_fin\": \"Soir\", \"type_absence\": \"CongePaye\"}"

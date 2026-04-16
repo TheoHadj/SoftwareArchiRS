@@ -35,14 +35,29 @@ use core::domain::entities::Employe;
 async fn main() {
     println!("🚀 Démarrage du SIRH...");
 
+
+    let mock_repo = Arc::new(MockRepository::new());
+    
+    let id_employe_test = Uuid::new_v4();
+    println!("uuid {id_employe_test}");
+    let employe_test = Employe {
+        id: id_employe_test,
+        nom: "Hadj".to_string(),
+        prenom: "Théo".to_string(),
+        quota_urgence_familiale: 3,
+    };
+    mock_repo.insert_test_employee(employe_test.clone());
+
+    
+
     // 1. Initialisation de l'Adaptateur Sortant (La Base de Données)
     // C'est ici qu'on fait le choix technologique de l'infrastructure
     // --- APRÈS (Quand tu auras créé ta base SQLite) ---
     // 1. On se connecte au fichier .sqlite
     let pool = sqlx::SqlitePool::connect("sqlite://mon_sirh.db").await.unwrap();
-
     // 2. On instancie le nouveau repository
-    let repository = Arc::new(SqliteRepository::new(pool));
+    let sqlite_repo = Arc::new(SqliteRepository::new(pool));
+
     // --- SETUP DE TEST ---
     // On crée un faux employé pour pouvoir tester notre API
     let id_employe_test = Uuid::new_v4();
@@ -52,15 +67,16 @@ async fn main() {
         prenom: "Jean".to_string(),
         quota_urgence_familiale: 3, // Il a droit à 3 urgences
     };
-    repository.insert_test_employee(employe_test.clone());
+
+    sqlite_repo.insert_test_employee(employe_test.clone());
     println!("👤 Employé de test créé avec l'ID : {}", id_employe_test);
     // ---------------------
 
     // 2. Initialisation du Cœur Métier (Injection des dépendances)
     // On passe le même repository pour les deux ports (Employee et Leave)
     let leave_service = Arc::new(LeaveService::new(
-        repository.clone(), 
-        repository.clone()
+        mock_repo.clone(), 
+        sqlite_repo.clone()
     ));
 
     // 3. Initialisation de l'Adaptateur Entrant (Le serveur Web)

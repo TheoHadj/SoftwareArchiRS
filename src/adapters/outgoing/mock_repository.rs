@@ -23,7 +23,6 @@ impl MockRepository {
         }
     }
 
-    // Utilitaire pour simuler des données existantes
     pub fn insert_test_employee(&self, employe: Employe) {
         let mut db = self.employes.lock().unwrap();
         db.insert(employe.id, employe);
