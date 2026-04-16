@@ -1,16 +1,14 @@
 // src/adapters/outgoing/in_memory_repository.rs
 
+use async_trait::async_trait;
+use axum::extract::{Path, State};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use async_trait::async_trait;
 use uuid::Uuid;
-use axum::extract::{State, Path};
 
 use crate::core::application::ports::{EmployeeRepository, LeaveRepository};
 use crate::core::domain::entities::{DemandeConge, Employe};
 use crate::core::domain::error::ErreurMetier;
-
-
 
 #[derive(Clone)]
 pub struct MockRepository {
@@ -48,7 +46,7 @@ impl EmployeeRepository for MockRepository {
     async fn get_all(&self) -> Result<Vec<Employe>, ErreurMetier> {
         let lock = self.employes.lock().unwrap(); // On ouvre le cadenas de la RAM
         // On prend toutes les valeurs du HashMap, on les clone, et on en fait une Liste (Vec)
-        let list: Vec<Employe> = lock.values().cloned().collect(); 
+        let list: Vec<Employe> = lock.values().cloned().collect();
         Ok(list)
     }
 }
@@ -63,8 +61,12 @@ impl LeaveRepository for MockRepository {
 
     async fn get_by_id(&self, id_employe: Uuid) -> Result<Vec<DemandeConge>, ErreurMetier> {
         let db = self.conges.lock().unwrap();
-        
+
         // Magie des itérateurs Rust : on filtre et on transforme en Liste d'un seul coup !
-        Ok(db.values().filter(|c| c.id_employe == id_employe).cloned().collect())
+        Ok(db
+            .values()
+            .filter(|c| c.id_employe == id_employe)
+            .cloned()
+            .collect())
     }
 }

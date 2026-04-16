@@ -1,7 +1,6 @@
+use crate::core::domain::error::ErreurMetier;
 use chrono::{Datelike, NaiveDate, Weekday};
 use serde::{Deserialize, Serialize};
-use crate::core::domain::error::ErreurMetier;
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum TypeAbsence {
@@ -22,7 +21,6 @@ pub enum MomentFin {
     Soir,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Periode {
     date_debut: NaiveDate,
@@ -38,12 +36,14 @@ impl Periode {
         date_fin: NaiveDate,
         moment_fin: MomentFin,
     ) -> Result<Self, ErreurMetier> {
-    
         println!("========================================");
         println!("🔍 DEBUG Periode::nouvelle");
         println!("▶️ Début : {} ({:?})", date_debut, moment_debut);
         println!("⏹️ Fin   : {} ({:?})", date_fin, moment_fin);
-        println!("🧮 Test mathématique (début > fin) : {}", date_debut > date_fin);
+        println!(
+            "🧮 Test mathématique (début > fin) : {}",
+            date_debut > date_fin
+        );
         println!("========================================");
 
         if date_debut > date_fin {
@@ -51,7 +51,9 @@ impl Periode {
             return Err(ErreurMetier::PeriodeInvalide);
         }
 
-        if date_debut == date_fin && moment_debut == MomentDebut::ApresMidi && moment_fin == MomentFin::Midi
+        if date_debut == date_fin
+            && moment_debut == MomentDebut::ApresMidi
+            && moment_fin == MomentFin::Midi
         {
             println!("❌ ERREUR : Même jour, mais on commence l'aprem pour finir le midi !");
             return Err(ErreurMetier::PeriodeInvalide);
@@ -76,20 +78,30 @@ impl Periode {
         let mut jour_courant = self.date_debut;
 
         while jour_courant <= self.date_fin {
-            let est_week_end = jour_courant.weekday() == Weekday::Sat || jour_courant.weekday() == Weekday::Sun;
+            let est_week_end =
+                jour_courant.weekday() == Weekday::Sat || jour_courant.weekday() == Weekday::Sun;
             let est_ferie = jours_feries.contains(&jour_courant);
 
             if !est_week_end && !est_ferie {
                 if self.date_debut == self.date_fin {
-                    if self.moment_debut == MomentDebut::Matin && self.moment_fin == MomentFin::Soir {
+                    if self.moment_debut == MomentDebut::Matin && self.moment_fin == MomentFin::Soir
+                    {
                         total += 1.0;
                     } else {
                         total += 0.5;
                     }
                 } else if jour_courant == self.date_debut {
-                    total += if self.moment_debut == MomentDebut::Matin { 1.0 } else { 0.5 };
+                    total += if self.moment_debut == MomentDebut::Matin {
+                        1.0
+                    } else {
+                        0.5
+                    };
                 } else if jour_courant == self.date_fin {
-                    total += if self.moment_fin == MomentFin::Soir { 1.0 } else { 0.5 };
+                    total += if self.moment_fin == MomentFin::Soir {
+                        1.0
+                    } else {
+                        0.5
+                    };
                 } else {
                     total += 1.0;
                 }

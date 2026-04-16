@@ -1,16 +1,19 @@
-use axum::{routing::{get, post}, Router};
+use axum::{
+    Router,
+    routing::{get, post},
+};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::str::FromStr;
 use std::{env, sync::Arc};
 use tokio::net::TcpListener;
 use uuid::Uuid;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use std::str::FromStr;
 
 // Déclaration de notre arborescence de modules
 mod core {
     pub mod domain {
+        pub mod entities;
         pub mod error;
         pub mod value_objects;
-        pub mod entities;
     }
     pub mod application {
         pub mod ports;
@@ -27,12 +30,14 @@ mod adapters {
     }
 }
 
+use adapters::incoming::http_handlers::{
+    AppState, lister_employes_by_id_handler, lister_employes_handler, poser_conge_handler,
+};
 use adapters::outgoing::mock_repository::MockRepository;
 use adapters::outgoing::sqlite_repository::SqliteRepository;
 use core::application::ports::EmployeeRepository;
 use core::application::ports::LeaveRepository;
 use core::application::services::LeaveService;
-use adapters::incoming::http_handlers::{poser_conge_handler, lister_employes_handler, lister_employes_by_id_handler, AppState};
 use core::domain::entities::Employe;
 
 #[tokio::main]
@@ -90,7 +95,7 @@ async fn main() {
             INSERT INTO employes (id, nom, prenom, quota_urgence_familiale) 
             VALUES ('f098ab96-3799-4481-b0d5-d0c3bfe509b0', 'Dupont', 'Jean', 3)
             ON CONFLICT(id) DO NOTHING;
-            "#
+            "#,
         )
         .execute(&pool)
         .await
@@ -99,7 +104,7 @@ async fn main() {
         println!("✅ Base de données prête !");
 
         let sqlite = Arc::new(adapters::outgoing::sqlite_repository::SqliteRepository::new(pool));
-        
+
         employee_repo = sqlite.clone();
         leave_repo = sqlite;
     }
@@ -117,10 +122,11 @@ async fn main() {
         .route("/conges", post(poser_conge_handler))
         .route("/employes", get(lister_employes_handler))
         .route("/employes/:id", get(lister_employes_by_id_handler))
-
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+        .await
+        .unwrap();
     println!("🌐 Serveur lancé sur http://127.0.0.1:3000");
     axum::serve(listener, app).await.unwrap();
 }

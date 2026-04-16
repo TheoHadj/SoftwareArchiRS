@@ -1,6 +1,6 @@
+use chrono::Local;
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Local;
 
 use crate::core::application::ports::{EmployeeRepository, LeaveRepository};
 use crate::core::domain::entities::{DemandeConge, Employe};
@@ -31,25 +31,23 @@ impl LeaveService {
         periode: Periode,
         type_absence: TypeAbsence,
     ) -> Result<DemandeConge, ErreurMetier> {
-        
         // 1. Récupérer l'employé depuis le Port sortant
-        let mut employe = self.employee_repo.find_by_id(id_employe).await?
+        let mut employe = self
+            .employee_repo
+            .find_by_id(id_employe)
+            .await?
             .ok_or(ErreurMetier::EmployeIntrouvable)?; // En vrai on ferait une ErreurMetier::EmployeIntrouvable
 
         let aujourd_hui = Local::now().date_naive();
 
         // 2. Faire travailler le Domaine (Le cœur métier)
-        let nouvelle_demande = DemandeConge::poser(
-            &mut employe,
-            periode,
-            type_absence,
-            aujourd_hui,
-        )?;
+        let nouvelle_demande =
+            DemandeConge::poser(&mut employe, periode, type_absence, aujourd_hui)?;
 
         // 3. Sauvegarder les changements d'état
         // Si le quota a été consommé, il faut sauvegarder l'employé !
         self.employee_repo.save(employe).await?;
-        
+
         // On sauvegarde la nouvelle demande
         self.leave_repo.save(nouvelle_demande.clone()).await?;
 
@@ -61,10 +59,12 @@ impl LeaveService {
         self.employee_repo.get_all().await
     }
 
-    pub async fn lister_employes_by_id(&self, id_employe: Uuid) -> Result<Option<(Employe, Vec<DemandeConge>)>, ErreurMetier> {
-
+    pub async fn lister_employes_by_id(
+        &self,
+        id_employe: Uuid,
+    ) -> Result<Option<(Employe, Vec<DemandeConge>)>, ErreurMetier> {
         let employe_opt = self.employee_repo.find_by_id(id_employe).await?;
-        
+
         if let Some(employe) = employe_opt {
             let conges = self.leave_repo.get_by_id(id_employe).await?;
             Ok(Some((employe, conges)))
@@ -72,5 +72,4 @@ impl LeaveService {
             Ok(None)
         }
     }
-
 }

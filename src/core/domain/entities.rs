@@ -1,10 +1,9 @@
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::NaiveDate;
 
 use crate::core::domain::error::ErreurMetier;
 use crate::core::domain::value_objects::{Periode, TypeAbsence};
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Employe {
@@ -24,12 +23,11 @@ impl Employe {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DemandeConge {
     pub id: Uuid,
     pub id_employe: Uuid,
-    pub periode: Periode, 
+    pub periode: Periode,
     pub type_absence: TypeAbsence,
 }
 
@@ -56,7 +54,6 @@ impl DemandeConge {
         })
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum ChoixEmploye {

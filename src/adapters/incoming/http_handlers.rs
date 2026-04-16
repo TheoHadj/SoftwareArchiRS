@@ -1,14 +1,8 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-    extract::Path
-};
+use axum::{Json, extract::Path, extract::State, http::StatusCode, response::IntoResponse};
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::NaiveDate;
 
 use crate::core::application::services::LeaveService; // Ou use_cases::LeaveService si tu as renommé !
 use crate::core::domain::value_objects::{MomentDebut, MomentFin, Periode, TypeAbsence};
@@ -68,7 +62,6 @@ pub async fn poser_conge_handler(
     State(state): State<AppState>,
     Json(payload): Json<PoserCongeRequestDto>,
 ) -> impl IntoResponse {
-    
     // 1. Transformation du DTO en Objet de Valeur (Validation de 1er niveau)
     let periode_result = Periode::nouvelle(
         payload.date_debut,
@@ -78,7 +71,6 @@ pub async fn poser_conge_handler(
     );
     println!("Périoderes : {:?}", periode_result);
 
-
     let periode = match periode_result {
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
@@ -86,25 +78,22 @@ pub async fn poser_conge_handler(
 
     println!("Période : {:?}", periode);
 
-
     // 2. Appel du Cas d'Utilisation (Le Service)
-    let resultat_service = state.leave_service.poser_un_conge(
-        payload.id_employe,
-        periode,
-        payload.type_absence,
-    ).await;
+    let resultat_service = state
+        .leave_service
+        .poser_un_conge(payload.id_employe, periode, payload.type_absence)
+        .await;
 
     println!("result svc : {:?}", resultat_service);
-
 
     // 3. Gestion de la réponse (Traduction du Domaine vers le Web)
     match resultat_service {
         Ok(demande) => {
             println!("OK match res");
 
-            // Pour l'exemple, on simule l'absence de jours fériés. 
+            // Pour l'exemple, on simule l'absence de jours fériés.
             // En vrai, tu passerais l'instance de ta stratégie ici.
-            let jours_feries_vides = vec![]; 
+            let jours_feries_vides = vec![];
             let jours_deduits = demande.periode.calculer_jours_reels(&jours_feries_vides);
 
             let response = PoserCongeResponseDto {
@@ -132,39 +121,44 @@ pub struct EmployeResponseDto {
 }
 
 // 2. Le Contrôleur
-pub async fn lister_employes_handler(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
-    
+pub async fn lister_employes_handler(State(state): State<AppState>) -> impl IntoResponse {
     match state.leave_service.lister_employes().await {
         Ok(employes) => {
             // On transforme nos Entités métier en DTOs pour le Web
-            let dtos: Vec<EmployeResponseDto> = employes.into_iter().map(|e| EmployeResponseDto {
-                id: e.id,
-                nom: e.nom,
-                prenom: e.prenom,
-            }).collect();
-            
+            let dtos: Vec<EmployeResponseDto> = employes
+                .into_iter()
+                .map(|e| EmployeResponseDto {
+                    id: e.id,
+                    nom: e.nom,
+                    prenom: e.prenom,
+                })
+                .collect();
+
             (StatusCode::OK, Json(dtos)).into_response()
         }
-        Err(_) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, "Erreur serveur".to_string()).into_response()
-        }
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Erreur serveur".to_string(),
+        )
+            .into_response(),
     }
 }
 
 pub async fn lister_employes_by_id_handler(
     State(state): State<AppState>,
-    Path(id) : Path<Uuid>
+    Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     match state.leave_service.lister_employes_by_id(id).await {
         Ok(Some((employe, conges))) => {
             // On transforme nos entités métier en DTOs
-            let conges_dto = conges.into_iter().map(|c| CongeResponseDto {
-                id: c.id,
-                type_absence: c.type_absence,
-                periode: c.periode,
-            }).collect();
+            let conges_dto = conges
+                .into_iter()
+                .map(|c| CongeResponseDto {
+                    id: c.id,
+                    type_absence: c.type_absence,
+                    periode: c.periode,
+                })
+                .collect();
 
             let response = EmployeDetailResponseDto {
                 id: employe.id,
@@ -172,15 +166,10 @@ pub async fn lister_employes_by_id_handler(
                 prenom: employe.prenom,
                 conges: conges_dto,
             };
-            
+
             (StatusCode::OK, Json(response)).into_response()
         }
-        Ok(None) => {
-            // L'employé n'existe pas
-            (StatusCode::NOT_FOUND, "Employé introuvable").into_response()
-        }
-        Err(_) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, "Erreur serveur").into_response()
-        }
+        Ok(None) => (StatusCode::NOT_FOUND, "Employé introuvable").into_response(),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Erreur serveur").into_response(),
     }
 }

@@ -1,7 +1,7 @@
 // src/adapters/outgoing/sqlite_repository.rs
 use async_trait::async_trait;
-use sqlx::SqlitePool;
 use sqlx::Row;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::core::application::ports::{EmployeeRepository, LeaveRepository};
@@ -17,22 +17,24 @@ impl SqliteRepository {
         Self { pool }
     }
 
-    pub fn insert_test_employee(&self, employe : Employe){
-        println!("L'employé {} a été créé (enfin, simulé !)", employe.nom);    }
+    pub fn insert_test_employee(&self, employe: Employe) {
+        println!("L'employé {} a été créé (enfin, simulé !)", employe.nom);
+    }
 }
 
 #[async_trait]
 impl EmployeeRepository for SqliteRepository {
-    
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Employe>, ErreurMetier> {
-        let result = sqlx::query("SELECT id, nom, prenom, quota_urgence_familiale FROM employes WHERE id = ?")
-            .bind(id.to_string())
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| {
-                println!("🚨 ERREUR SQLITE find_by_id : {:?}", e);
-                ErreurMetier::EngineError
-            })?;
+        let result = sqlx::query(
+            "SELECT id, nom, prenom, quota_urgence_familiale FROM employes WHERE id = ?",
+        )
+        .bind(id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| {
+            println!("🚨 ERREUR SQLITE find_by_id : {:?}", e);
+            ErreurMetier::EngineError
+        })?;
 
         if let Some(row) = result {
             let id_str: String = row.get("id");
@@ -47,8 +49,6 @@ impl EmployeeRepository for SqliteRepository {
         }
     }
 
-    
-
     async fn save(&self, employe: Employe) -> Result<(), ErreurMetier> {
         // "Upsert" : Insère, ou met à jour si l'ID existe déjà (pratique pour le quota !)
         sqlx::query(
@@ -57,7 +57,7 @@ impl EmployeeRepository for SqliteRepository {
             VALUES (?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET 
                 quota_urgence_familiale = excluded.quota_urgence_familiale
-            "#
+            "#,
         )
         .bind(employe.id.to_string())
         .bind(&employe.nom)
@@ -96,18 +96,19 @@ impl EmployeeRepository for SqliteRepository {
     }
 }
 
-
 #[async_trait]
 impl LeaveRepository for SqliteRepository {
     async fn get_by_id(&self, id_employe: Uuid) -> Result<Vec<DemandeConge>, ErreurMetier> {
-        let rows = sqlx::query("SELECT id, id_employe, periode, type_absence FROM conges WHERE id_employe = ?")
-            .bind(id_employe.to_string())
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| {
-                println!("🚨 ERREUR SQLITE lister_par_employe : {:?}", e);
-                ErreurMetier::EngineError
-            })?;
+        let rows = sqlx::query(
+            "SELECT id, id_employe, periode, type_absence FROM conges WHERE id_employe = ?",
+        )
+        .bind(id_employe.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| {
+            println!("🚨 ERREUR SQLITE lister_par_employe : {:?}", e);
+            ErreurMetier::EngineError
+        })?;
 
         let mut conges = Vec::new();
         for row in rows {
@@ -137,7 +138,7 @@ impl LeaveRepository for SqliteRepository {
             r#"
             INSERT INTO conges (id, id_employe, periode, type_absence)
             VALUES (?, ?, ?, ?)
-            "#
+            "#,
         )
         .bind(demande.id.to_string())
         .bind(demande.id_employe.to_string())
@@ -145,7 +146,7 @@ impl LeaveRepository for SqliteRepository {
         .bind(type_absence_str)
         .execute(&self.pool)
         .await
-        .map_err(|_| ErreurMetier::EngineError)?; 
+        .map_err(|_| ErreurMetier::EngineError)?;
 
         println!("💾 Congé sauvegardé dans SQLite !");
         Ok(())
