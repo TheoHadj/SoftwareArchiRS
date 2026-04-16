@@ -1,7 +1,9 @@
 use axum::{routing::{get, post}, Router};
-use std::sync::Arc;
+use std::{env, sync::Arc};
 use tokio::net::TcpListener;
 use uuid::Uuid;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::str::FromStr;
 
 // Déclaration de notre arborescence de modules
 mod core {
@@ -27,6 +29,8 @@ mod adapters {
 
 use adapters::outgoing::mock_repository::MockRepository;
 use adapters::outgoing::sqlite_repository::SqliteRepository;
+use core::application::ports::EmployeeRepository;
+use core::application::ports::LeaveRepository;
 use core::application::services::LeaveService;
 use adapters::incoming::http_handlers::{poser_conge_handler, lister_employes_handler, AppState};
 use core::domain::entities::Employe;
@@ -35,62 +39,86 @@ use core::domain::entities::Employe;
 async fn main() {
     println!("🚀 Démarrage du SIRH...");
 
+    // 1. Aiguillage via l'environnement (Par défaut : "false" -> on utilise SQLite)
+    let use_mock = env::var("USE_MOCK").unwrap_or_else(|_| "false".to_string()) == "true";
 
-    let mock_repo = Arc::new(MockRepository::new());
-    
-    let id_employe_test = Uuid::new_v4();
-    println!("uuid {id_employe_test}");
-    let employe_test = Employe {
-        id: id_employe_test,
-        nom: "Hadj".to_string(),
-        prenom: "Théo".to_string(),
-        quota_urgence_familiale: 3,
-    };
-    mock_repo.insert_test_employee(employe_test.clone());
+    // 2. Préparation des variables qui vont tenir nos bases de données
+    let employee_repo: Arc<dyn EmployeeRepository>;
+    let leave_repo: Arc<dyn LeaveRepository>;
 
-    
+    if use_mock {
+        println!("🛠️ MODE TEST : Base de données en mémoire (Mock)");
+        let mock = Arc::new(adapters::outgoing::mock_repository::MockRepository::new());
+        employee_repo = mock.clone();
+        leave_repo = mock;
+    } else {
+        println!("🛢️ MODE PRODUCTION : Connexion à SQLite...");
 
-    // 1. Initialisation de l'Adaptateur Sortant (La Base de Données)
-    // C'est ici qu'on fait le choix technologique de l'infrastructure
-    // --- APRÈS (Quand tu auras créé ta base SQLite) ---
-    // 1. On se connecte au fichier .sqlite
-    let pool = sqlx::SqlitePool::connect("sqlite://mon_sirh.db").await.unwrap();
-    // 2. On instancie le nouveau repository
-    let sqlite_repo = Arc::new(SqliteRepository::new(pool));
+        // 1. On demande à SQLx de créer le fichier s'il n'existe pas
+        let options = SqliteConnectOptions::from_str("sqlite://mon_sirh.db")
+            .unwrap()
+            .create_if_missing(true);
 
-    // --- SETUP DE TEST ---
-    // On crée un faux employé pour pouvoir tester notre API
-    let id_employe_test = Uuid::new_v4();
-    let employe_test = Employe {
-        id: id_employe_test,
-        nom: "Dupont".to_string(),
-        prenom: "Jean".to_string(),
-        quota_urgence_familiale: 3, // Il a droit à 3 urgences
-    };
+        let pool = SqlitePoolOptions::new()
+            .connect_with(options)
+            .await
+            .expect("❌ Impossible de se connecter ou créer la base SQLite");
 
-    sqlite_repo.insert_test_employee(employe_test.clone());
-    println!("👤 Employé de test créé avec l'ID : {}", id_employe_test);
-    // ---------------------
+        // 2. On exécute le script d'initialisation (Tables + Données par défaut)
+        println!("🏗️ Vérification et création des tables...");
+        sqlx::query(
+            r#"
+            -- Table des employés
+            CREATE TABLE IF NOT EXISTS employes (
+                id TEXT PRIMARY KEY,
+                nom TEXT NOT NULL,
+                prenom TEXT NOT NULL,
+                quota_urgence_familiale INTEGER NOT NULL
+            );
 
-    // 2. Initialisation du Cœur Métier (Injection des dépendances)
-    // On passe le même repository pour les deux ports (Employee et Leave)
-    let leave_service = Arc::new(LeaveService::new(
-        mock_repo.clone(), 
-        sqlite_repo.clone()
+            -- Table des congés (avec clé étrangère vers employes)
+            CREATE TABLE IF NOT EXISTS conges (
+                id TEXT PRIMARY KEY,
+                id_employe TEXT NOT NULL,
+                periode TEXT NOT NULL,
+                type_absence TEXT NOT NULL,
+                FOREIGN KEY (id_employe) REFERENCES employes(id)
+            );
+
+            -- Insertion de notre employé de test (Jean Dupont)
+            -- S'il existe déjà (ON CONFLICT), on ne fait rien (DO NOTHING)
+            INSERT INTO employes (id, nom, prenom, quota_urgence_familiale) 
+            VALUES ('f098ab96-3799-4481-b0d5-d0c3bfe509b0', 'Dupont', 'Jean', 3)
+            ON CONFLICT(id) DO NOTHING;
+            "#
+        )
+        .execute(&pool)
+        .await
+        .expect("❌ Impossible d'initialiser les tables SQLite");
+
+        println!("✅ Base de données prête !");
+
+        let sqlite = Arc::new(adapters::outgoing::sqlite_repository::SqliteRepository::new(pool));
+        
+        employee_repo = sqlite.clone();
+        leave_repo = sqlite;
+    }
+
+    // 3. On injecte les repositories choisis dans le service
+    let leave_service = Arc::new(core::application::services::LeaveService::new(
+        employee_repo,
+        leave_repo,
     ));
 
-    // 3. Initialisation de l'Adaptateur Entrant (Le serveur Web)
     let state = AppState { leave_service };
 
+    // 4. Lancement du serveur Axum (Le reste de ton code ne bouge pas)
     let app = Router::new()
         .route("/conges", post(poser_conge_handler))
         .route("/employes", get(lister_employes_handler))
         .with_state(state);
 
-    // 4. Lancement du serveur
-    let adresse = "127.0.0.1:3000";
-    let listener = TcpListener::bind(adresse).await.unwrap();
-    println!("🌐 Serveur lancé sur http://{}", adresse);
-    
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
+    println!("🌐 Serveur lancé sur http://127.0.0.1:3000");
     axum::serve(listener, app).await.unwrap();
 }

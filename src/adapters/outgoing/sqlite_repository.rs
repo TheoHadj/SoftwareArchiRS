@@ -1,7 +1,4 @@
 // src/adapters/outgoing/sqlite_repository.rs
-
-use std::f32::consts::E;
-
 use async_trait::async_trait;
 use sqlx::SqlitePool;
 use sqlx::Row;
@@ -79,7 +76,7 @@ impl EmployeeRepository for SqliteRepository {
             .fetch_all(&self.pool)
             .await
             .map_err(|e| {
-                println!("🚨 ERREUR SQLITE lister_tous : {:?}", e);
+                println!("🚨 ERREUR SQLITE get_all : {:?}", e);
                 ErreurMetier::EngineError
             })?;
 
