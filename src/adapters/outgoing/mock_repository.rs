@@ -4,10 +4,13 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use uuid::Uuid;
+use axum::extract::{State, Path};
 
 use crate::core::application::ports::{EmployeeRepository, LeaveRepository};
 use crate::core::domain::entities::{DemandeConge, Employe};
 use crate::core::domain::error::ErreurMetier;
+
+
 
 #[derive(Clone)]
 pub struct MockRepository {
@@ -56,5 +59,12 @@ impl LeaveRepository for MockRepository {
         let mut db = self.conges.lock().unwrap();
         db.insert(demande.id, demande);
         Ok(())
+    }
+
+    async fn get_by_id(&self, id_employe: Uuid) -> Result<Vec<DemandeConge>, ErreurMetier> {
+        let db = self.conges.lock().unwrap();
+        
+        // Magie des itérateurs Rust : on filtre et on transforme en Liste d'un seul coup !
+        Ok(db.values().filter(|c| c.id_employe == id_employe).cloned().collect())
     }
 }

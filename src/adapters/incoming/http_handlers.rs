@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
     Json,
+    extract::Path
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -12,6 +13,22 @@ use chrono::NaiveDate;
 use crate::core::application::services::LeaveService; // Ou use_cases::LeaveService si tu as renommé !
 use crate::core::domain::value_objects::{MomentDebut, MomentFin, Periode, TypeAbsence};
 
+// Le DTO pour un seul congé
+#[derive(Serialize)]
+pub struct CongeResponseDto {
+    pub id: Uuid,
+    pub type_absence: TypeAbsence,
+    pub periode: Periode, // On peut renvoyer la période entière, elle implémente déjà Serialize !
+}
+
+// Le DTO complet de la page de profil
+#[derive(Serialize)]
+pub struct EmployeDetailResponseDto {
+    pub id: Uuid,
+    pub nom: String,
+    pub prenom: String,
+    pub conges: Vec<CongeResponseDto>,
+}
 // --------------------------------------------------------
 // L'État de l'Application (Dependency Injection)
 // --------------------------------------------------------
@@ -132,6 +149,38 @@ pub async fn lister_employes_handler(
         }
         Err(_) => {
             (StatusCode::INTERNAL_SERVER_ERROR, "Erreur serveur".to_string()).into_response()
+        }
+    }
+}
+
+pub async fn lister_employes_by_id_handler(
+    State(state): State<AppState>,
+    Path(id) : Path<Uuid>
+) -> impl IntoResponse {
+    match state.leave_service.lister_employes_by_id(id).await {
+        Ok(Some((employe, conges))) => {
+            // On transforme nos entités métier en DTOs
+            let conges_dto = conges.into_iter().map(|c| CongeResponseDto {
+                id: c.id,
+                type_absence: c.type_absence,
+                periode: c.periode,
+            }).collect();
+
+            let response = EmployeDetailResponseDto {
+                id: employe.id,
+                nom: employe.nom,
+                prenom: employe.prenom,
+                conges: conges_dto,
+            };
+            
+            (StatusCode::OK, Json(response)).into_response()
+        }
+        Ok(None) => {
+            // L'employé n'existe pas
+            (StatusCode::NOT_FOUND, "Employé introuvable").into_response()
+        }
+        Err(_) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, "Erreur serveur").into_response()
         }
     }
 }

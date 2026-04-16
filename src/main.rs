@@ -32,7 +32,7 @@ use adapters::outgoing::sqlite_repository::SqliteRepository;
 use core::application::ports::EmployeeRepository;
 use core::application::ports::LeaveRepository;
 use core::application::services::LeaveService;
-use adapters::incoming::http_handlers::{poser_conge_handler, lister_employes_handler, AppState};
+use adapters::incoming::http_handlers::{poser_conge_handler, lister_employes_handler, lister_employes_by_id_handler, AppState};
 use core::domain::entities::Employe;
 
 #[tokio::main]
@@ -116,6 +116,8 @@ async fn main() {
     let app = Router::new()
         .route("/conges", post(poser_conge_handler))
         .route("/employes", get(lister_employes_handler))
+        .route("/employes/:id", get(lister_employes_by_id_handler))
+
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();

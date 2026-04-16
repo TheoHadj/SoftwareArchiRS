@@ -33,14 +33,12 @@ impl LeaveService {
     ) -> Result<DemandeConge, ErreurMetier> {
         
         // 1. Récupérer l'employé depuis le Port sortant
-        // Si find_by_id renvoie None, on lève une erreur (ici on triche un peu en réutilisant une erreur métier existante pour l'exemple)
         let mut employe = self.employee_repo.find_by_id(id_employe).await?
             .ok_or(ErreurMetier::EmployeIntrouvable)?; // En vrai on ferait une ErreurMetier::EmployeIntrouvable
 
         let aujourd_hui = Local::now().date_naive();
 
         // 2. Faire travailler le Domaine (Le cœur métier)
-        // La méthode `poser` va vérifier l'anticipation et déduire le quota si besoin.
         let nouvelle_demande = DemandeConge::poser(
             &mut employe,
             periode,
@@ -60,8 +58,19 @@ impl LeaveService {
     }
 
     pub async fn lister_employes(&self) -> Result<Vec<Employe>, ErreurMetier> {
-        // Le service délègue simplement au repository
         self.employee_repo.get_all().await
+    }
+
+    pub async fn lister_employes_by_id(&self, id_employe: Uuid) -> Result<Option<(Employe, Vec<DemandeConge>)>, ErreurMetier> {
+
+        let employe_opt = self.employee_repo.find_by_id(id_employe).await?;
+        
+        if let Some(employe) = employe_opt {
+            let conges = self.leave_repo.get_by_id(id_employe).await?;
+            Ok(Some((employe, conges)))
+        } else {
+            Ok(None)
+        }
     }
 
 }

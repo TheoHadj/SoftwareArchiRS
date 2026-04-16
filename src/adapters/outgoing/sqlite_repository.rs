@@ -47,6 +47,8 @@ impl EmployeeRepository for SqliteRepository {
         }
     }
 
+    
+
     async fn save(&self, employe: Employe) -> Result<(), ErreurMetier> {
         // "Upsert" : Insère, ou met à jour si l'ID existe déjà (pratique pour le quota !)
         sqlx::query(
@@ -97,6 +99,34 @@ impl EmployeeRepository for SqliteRepository {
 
 #[async_trait]
 impl LeaveRepository for SqliteRepository {
+    async fn get_by_id(&self, id_employe: Uuid) -> Result<Vec<DemandeConge>, ErreurMetier> {
+        let rows = sqlx::query("SELECT id, id_employe, periode, type_absence FROM conges WHERE id_employe = ?")
+            .bind(id_employe.to_string())
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
+                println!("🚨 ERREUR SQLITE lister_par_employe : {:?}", e);
+                ErreurMetier::EngineError
+            })?;
+
+        let mut conges = Vec::new();
+        for row in rows {
+            let id_str: String = row.get("id");
+            let id_emp_str: String = row.get("id_employe");
+            let periode_str: String = row.get("periode");
+            let type_absence_str: String = row.get("type_absence");
+
+            conges.push(DemandeConge {
+                id: Uuid::parse_str(&id_str).unwrap(),
+                id_employe: Uuid::parse_str(&id_emp_str).unwrap(),
+                // On redécode le JSON stocké en texte dans la base
+                periode: serde_json::from_str(&periode_str).unwrap(),
+                type_absence: serde_json::from_str(&type_absence_str).unwrap(),
+            });
+        }
+        Ok(conges)
+    }
+
     async fn save(&self, demande: DemandeConge) -> Result<(), ErreurMetier> {
         let type_absence_str = serde_json::to_string(&demande.type_absence).unwrap();
         let periode_str = serde_json::to_string(&demande.periode).unwrap();
