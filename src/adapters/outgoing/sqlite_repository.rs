@@ -1,4 +1,3 @@
-// src/adapters/outgoing/sqlite_repository.rs
 use async_trait::async_trait;
 use chrono::NaiveDate;
 use sqlx::Row;
@@ -18,10 +17,6 @@ pub struct SqliteRepository {
 impl SqliteRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
-    }
-
-    pub fn insert_test_employee(&self, employe: Employe) {
-        println!("L'employé {} a été créé (enfin, simulé !)", employe.nom);
     }
 }
 
@@ -55,7 +50,6 @@ impl EmployeeRepository for SqliteRepository {
     }
 
     async fn save(&self, employe: Employe) -> Result<(), ErreurMetier> {
-        // "Upsert" : Insère, ou met à jour si l'ID existe déjà (pratique pour le quota !)
         sqlx::query(
             r#"
             INSERT INTO employes (id, nom, prenom, quota_urgence_familiale, quota_conges, quota_rtt)
@@ -132,7 +126,6 @@ impl AbsenceRepository for SqliteRepository {
             conges.push(DemandeConge {
                 id: Uuid::parse_str(&id_str).unwrap(),
                 id_employe: Uuid::parse_str(&id_emp_str).unwrap(),
-                // On redécode le JSON stocké en texte dans la base
                 periode: serde_json::from_str(&periode_str).unwrap(),
                 type_absence: serde_json::from_str(&type_absence_str).unwrap(),
             });
@@ -144,8 +137,6 @@ impl AbsenceRepository for SqliteRepository {
         let type_absence_str = serde_json::to_string(&demande.type_absence).unwrap();
         let periode_str = serde_json::to_string(&demande.periode).unwrap();
 
-        // 1. On utilise query() SANS le point d'exclamation
-        // 2. On attache les variables avec .bind()
         sqlx::query(
             r#"
             INSERT INTO conges (id, id_employe, periode, type_absence)
@@ -172,13 +163,11 @@ impl HeuresSuppRepository for SqliteRepository {
         let id_employe_str = hs.id_employe.to_string();
         let date_str = hs.date.to_string();
 
-        // On convertit l'Enum en texte pour SQLite
         let choix_str = match hs.choix {
             ChoixEmploye::Paiement => "Paiement",
             ChoixEmploye::Recuperation => "Recuperation",
         };
 
-        // L'UPSERT SQLite (INSERT ou UPDATE si l'ID existe déjà)
         sqlx::query(
             r#"
             INSERT INTO heures_supplementaires (id, id_employe, heures, date, choix, validation_manager)
@@ -200,7 +189,7 @@ impl HeuresSuppRepository for SqliteRepository {
         .await
         .map_err(|e| {
             println!("Erreur DB (Sauvegarde HS) : {:?}", e);
-            ErreurMetier::EmployeIntrouvable // Remplace par une vraie erreur DB si tu en as une dans ton Enum
+            ErreurMetier::EmployeIntrouvable
         })?;
 
         Ok(())
@@ -212,19 +201,17 @@ impl HeuresSuppRepository for SqliteRepository {
     ) -> Result<Option<HeuresSupplementaires>, ErreurMetier> {
         let id_str = id.to_string();
 
-        // sqlx::query_as est parfois capricieux avec les Enums, on utilise query() et on map manuellement
         let row = sqlx::query(
             "SELECT id, id_employe, heures, date, choix, validation_manager FROM heures_supplementaires WHERE id = $1"
         )
         .bind(id_str)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|_| ErreurMetier::EmployeIntrouvable)?; // Idem, utilise une erreur générique
+        .map_err(|_| ErreurMetier::EmployeIntrouvable)?;
 
         if let Some(row) = row {
-            use sqlx::Row; // Nécessaire pour faire row.get()
+            use sqlx::Row;
 
-            // Reconstitution des types depuis les chaînes SQLite
             let hs_id = Uuid::parse_str(row.get("id")).unwrap();
             let emp_id = Uuid::parse_str(row.get("id_employe")).unwrap();
             let date = NaiveDate::parse_from_str(row.get("date"), "%Y-%m-%d").unwrap();
@@ -249,12 +236,11 @@ impl HeuresSuppRepository for SqliteRepository {
         }
     }
 
+    //à supprimer
     async fn lister_par_employe(
         &self,
         _id_employe: Uuid,
     ) -> Result<Vec<HeuresSupplementaires>, ErreurMetier> {
-        // Je te laisse celle-ci en exercice si tu en as besoin plus tard !
-        // C'est exactement comme trouver_par_id, mais avec .fetch_all() au lieu de .fetch_optional()
         Ok(vec![])
     }
 }

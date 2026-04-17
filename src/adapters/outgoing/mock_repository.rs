@@ -1,5 +1,3 @@
-// src/adapters/outgoing/in_memory_repository.rs
-
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -47,8 +45,7 @@ impl EmployeeRepository for MockRepository {
     }
 
     async fn get_all(&self) -> Result<Vec<Employe>, ErreurMetier> {
-        let lock = self.employes.lock().unwrap(); // On ouvre le cadenas de la RAM
-        // On prend toutes les valeurs du HashMap, on les clone, et on en fait une Liste (Vec)
+        let lock = self.employes.lock().unwrap();
         let list: Vec<Employe> = lock.values().cloned().collect();
         Ok(list)
     }
@@ -76,7 +73,6 @@ impl AbsenceRepository for MockRepository {
 #[async_trait]
 impl HeuresSuppRepository for MockRepository {
     async fn sauver(&self, hs: HeuresSupplementaires) -> Result<(), ErreurMetier> {
-        // On verrouille le Mutex pour obtenir un accès exclusif
         let mut store = self.heures_supp.lock().unwrap();
 
         store.insert(hs.id, hs);
@@ -87,10 +83,8 @@ impl HeuresSuppRepository for MockRepository {
         &self,
         id: Uuid,
     ) -> Result<Option<HeuresSupplementaires>, ErreurMetier> {
-        // Même pour lire, on verrouille le Mutex
         let store = self.heures_supp.lock().unwrap();
 
-        // .cloned() copie la valeur pour pouvoir la sortir du verrou
         Ok(store.get(&id).cloned())
     }
 

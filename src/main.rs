@@ -40,7 +40,6 @@ async fn main() {
     // var d'env $env = true ==> sqlite X Mock V
     let use_mock = env::var("USE_MOCK").unwrap_or_else(|_| "false".to_string()) == "true";
 
-    // 2. Préparation des variables qui vont tenir nos bases de données
     let employee_repo: Arc<dyn EmployeeRepository>;
     let abs_repo: Arc<dyn AbsenceRepository>;
     let hs_repo: Arc<dyn HeuresSuppRepository>;
@@ -54,7 +53,6 @@ async fn main() {
     } else {
         println!("🛢️ MODE PRODUCTION : Connexion à SQLite...");
 
-        // 1. On demande à SQLx de créer le fichier s'il n'existe pas
         let options = SqliteConnectOptions::from_str("sqlite://mon_sirh.db")
             .unwrap()
             .create_if_missing(true);
@@ -64,7 +62,6 @@ async fn main() {
             .await
             .expect("❌ Impossible de se connecter ou créer la base SQLite");
 
-        // 2. On exécute le script d'initialisation (Tables + Données par défaut)
         println!("🏗️ Vérification et création des tables...");
         sqlx::query(
             r#"

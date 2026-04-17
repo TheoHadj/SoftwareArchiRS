@@ -12,10 +12,8 @@ use crate::core::domain::value_objects::generer_jours_feries_france;
 use crate::core::domain::value_objects::{Periode, TypeAbsence};
 
 pub struct AbsenceService {
-    // Injection des dépendances via nos Ports (Interfaces)
     employee_repo: Arc<dyn EmployeeRepository>,
     abs_repo: Arc<dyn AbsenceRepository>,
-    // en cache =>
     cache_jours_feries: RwLock<HashMap<i32, Vec<NaiveDate>>>,
 }
 
@@ -40,7 +38,7 @@ impl AbsenceService {
         periode: Periode,
         type_absence: TypeAbsence,
     ) -> Result<(DemandeConge, f32), ErreurMetier> {
-        // 1. Récupérer l'employé depuis le Port sortant
+
         let mut employe: Employe = self
             .employee_repo
             .find_by_id(id_employe)
@@ -83,7 +81,7 @@ impl AbsenceService {
             Ok(None)
         }
     }
-    //On ajoute les jours fériés non calculé au cache
+
     fn get_jours_feries(&self, date_debut: NaiveDate, date_fin: NaiveDate) -> Vec<NaiveDate> {
         let mut tous_les_jours: Vec<NaiveDate> = Vec::new();
         let annee_debut = date_debut.year();
@@ -155,7 +153,6 @@ impl HeuresSuppService {
             self.employee_repo.save(employe).await?;
         }
 
-        // 4. On persiste l'état validé de la déclaration HS
         self.hs_repo.sauver(hs).await
     }
 
@@ -163,7 +160,6 @@ impl HeuresSuppService {
         &self,
         id_employe: Uuid,
     ) -> Result<Vec<HeuresSupplementaires>, ErreurMetier> {
-        // On passe simplement l'appel au repository
         self.hs_repo.lister_par_employe(id_employe).await
     }
 }

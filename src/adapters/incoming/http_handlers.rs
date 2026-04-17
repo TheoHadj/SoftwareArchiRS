@@ -21,7 +21,6 @@ pub struct AppState {
 // --------------------------------------------------------
 // Les DTO
 // --------------------------------------------------------
-/// Ce que le client envoie dans le body de sa requête POST
 
 #[derive(Serialize)]
 pub struct CongeResponseDto {
@@ -30,7 +29,6 @@ pub struct CongeResponseDto {
     pub periode: Periode,
 }
 
-// Le DTO complet de la page de profil
 #[derive(Serialize)]
 pub struct EmployeDetailResponseDto {
     pub id: Uuid,
@@ -125,7 +123,6 @@ pub async fn poser_conge_handler(
         Err(erreur_metier) => {
             println!("PAS OK match res");
 
-            // Toutes nos erreurs métier sont des BAD_REQUEST ou CONFLICT
             (StatusCode::BAD_REQUEST, erreur_metier.to_string()).into_response()
         }
     }
@@ -134,7 +131,6 @@ pub async fn poser_conge_handler(
 pub async fn lister_employes_handler(State(state): State<AppState>) -> impl IntoResponse {
     match state.abs_service.lister_employes().await {
         Ok(employes) => {
-            // On transforme nos Entités métier en DTOs pour le Web
             let dtos: Vec<EmployeResponseDto> = employes
                 .into_iter()
                 .map(|e| EmployeResponseDto {
@@ -160,7 +156,6 @@ pub async fn lister_employes_by_id_handler(
 ) -> impl IntoResponse {
     match state.abs_service.lister_employes_by_id(id).await {
         Ok(Some((employe, conges))) => {
-            // On transforme nos entités métier en DTOs
             let conges_dto = conges
                 .into_iter()
                 .map(|c| CongeResponseDto {
@@ -236,7 +231,7 @@ pub async fn lister_hs_by_employe_handler(
     match state.hs_service.lister_par_employe(id_employe).await {
         Ok(liste_hs) => (
             StatusCode::OK,
-            Json(liste_hs), // On renvoie directement le vecteur en JSON
+            Json(liste_hs),
         )
             .into_response(),
 

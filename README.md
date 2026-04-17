@@ -24,7 +24,7 @@ Ils font le pont entre le monde extérieur et le métier.
 * **Incoming (HTTP)** : API REST avec le framework **Axum**. Réceptionne le JSON, appelle les Services, et renvoie les réponses formatées.
 * **Outgoing (Persistance)** : 
     * **SQLite** : Persistance réelle avec **SQLx**. Gère le schéma, les jointures et les `UPSERT`.
-    * **Mock** : Base de données en mémoire via des `HashMap` protégées par des `Arc<Mutex<...>>` pour le développement et les tests.
+    * **Mock** : Base de données en mémoire via des `HashMap` protégées par des `Arc<Mutex<...>>` pour le développement et les tests. Utilisable avec des arguments au run
 
 ---
 
@@ -48,7 +48,7 @@ L'application crée automatiquement une base SQLite `mon_sirh.db` au premier lan
 cargo run
 ```
 
-### 3. Lancement (Mode Mock - En mémoire)
+### 3. Lancement (Mode Mock)
 ```bash
 # Windows (PowerShell)
 $env:USE_MOCK="true"; cargo run
@@ -59,10 +59,10 @@ USE_MOCK=true cargo run
 
 ---
 
-## 🧪 Guide de Test (API)
+## 🧪 Exemples de Test (API)
 
 ### Fichiers de test recommandés
-Crée ces fichiers à la racine de ton projet pour simplifier tes appels `curl`.
+Créer ces fichiers à la racine de ton projet pour simplifier les appels `curl`.
 
 **test_hs.json**
 ```json

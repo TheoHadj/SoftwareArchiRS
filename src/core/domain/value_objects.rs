@@ -87,7 +87,7 @@ impl Periode {
             print!("jours courant : {} \n", &jour_courant);
             print!("jours feries liste : {:?} \n", jours_feries);
             print!("In list ? : {:?} \n\n", est_ferie);
-            //tiré par les cheveux de ouf
+            // c moche
             if !est_week_end && !est_ferie {
                 if self.date_debut == self.date_fin {
                     if self.moment_debut == MomentDebut::Matin && self.moment_fin == MomentFin::Soir
@@ -156,9 +156,9 @@ pub fn generer_jours_feries_france(annee: i32) -> Vec<NaiveDate> {
     ];
 
     let paques = calculer_paques(annee);
-    jours.push(paques.checked_add_days(Days::new(1)).unwrap()); // Lundi de Pâques (+1 jour)
-    jours.push(paques.checked_add_days(Days::new(39)).unwrap()); // Ascension (+39 jours)
-    jours.push(paques.checked_add_days(Days::new(50)).unwrap()); // Lundi de Pentecôte (+50 jours)
+    jours.push(paques.checked_add_days(Days::new(1)).unwrap());
+    jours.push(paques.checked_add_days(Days::new(39)).unwrap());
+    jours.push(paques.checked_add_days(Days::new(50)).unwrap());
 
     jours
 }
