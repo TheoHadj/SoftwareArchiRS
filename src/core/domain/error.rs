@@ -8,16 +8,12 @@ pub enum ErreurMetier {
     #[error("Quota d'urgence familiale insuffisant.")]
     QuotaUrgenceEpuise,
 
-    #[error("Transformation impossible : en attente de validation du manager direct.")]
-    EnAttenteManager,
-
-    #[error(
-        "La période saisie est invalide (dates incohérentes ou configuration de demi-journée impossible)."
-    )]
+    #[error("La période saisie est invalide (dates incohérentes ou configuration de demi-journée impossible).")]
     PeriodeInvalide,
 
-    #[error("Vous n'avez pas assez de congés disponible")]
-    CongeDepasse,
+    //àfaire
+    // #[error("Vous n'avez pas assez de congés disponible")]
+    // CongeDepasse,
 
     #[error("Employé introuvable")]
     EmployeIntrouvable,
