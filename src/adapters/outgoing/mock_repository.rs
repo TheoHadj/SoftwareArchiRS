@@ -1,19 +1,21 @@
 // src/adapters/outgoing/in_memory_repository.rs
 
 use async_trait::async_trait;
-use axum::extract::{Path, State};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-use crate::core::application::ports::{EmployeeRepository, AbsenceRepository};
-use crate::core::domain::entities::{DemandeConge, Employe};
+use crate::core::application::ports::{
+    AbsenceRepository, EmployeeRepository, HeuresSuppRepository,
+};
+use crate::core::domain::entities::{DemandeConge, Employe, HeuresSupplementaires};
 use crate::core::domain::error::ErreurMetier;
 
 #[derive(Clone)]
 pub struct MockRepository {
     employes: Arc<Mutex<HashMap<Uuid, Employe>>>,
     conges: Arc<Mutex<HashMap<Uuid, DemandeConge>>>,
+    heures_supp: Arc<Mutex<HashMap<Uuid, HeuresSupplementaires>>>,
 }
 
 impl MockRepository {
@@ -21,6 +23,7 @@ impl MockRepository {
         Self {
             employes: Arc::new(Mutex::new(HashMap::new())),
             conges: Arc::new(Mutex::new(HashMap::new())),
+            heures_supp: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -62,11 +65,47 @@ impl AbsenceRepository for MockRepository {
     async fn get_by_id(&self, id_employe: Uuid) -> Result<Vec<DemandeConge>, ErreurMetier> {
         let db = self.conges.lock().unwrap();
 
-        // Magie des itérateurs Rust : on filtre et on transforme en Liste d'un seul coup !
         Ok(db
             .values()
             .filter(|c| c.id_employe == id_employe)
             .cloned()
             .collect())
+    }
+}
+
+#[async_trait]
+impl HeuresSuppRepository for MockRepository {
+    async fn sauver(&self, hs: HeuresSupplementaires) -> Result<(), ErreurMetier> {
+        // On verrouille le Mutex pour obtenir un accès exclusif
+        let mut store = self.heures_supp.lock().unwrap();
+
+        store.insert(hs.id, hs);
+        Ok(())
+    }
+
+    async fn trouver_par_id(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<HeuresSupplementaires>, ErreurMetier> {
+        // Même pour lire, on verrouille le Mutex
+        let store = self.heures_supp.lock().unwrap();
+
+        // .cloned() copie la valeur pour pouvoir la sortir du verrou
+        Ok(store.get(&id).cloned())
+    }
+
+    async fn lister_par_employe(
+        &self,
+        id_employe: Uuid,
+    ) -> Result<Vec<HeuresSupplementaires>, ErreurMetier> {
+        let store = self.heures_supp.lock().unwrap();
+
+        let liste = store
+            .values()
+            .filter(|hs| hs.id_employe == id_employe)
+            .cloned()
+            .collect();
+
+        Ok(liste)
     }
 }

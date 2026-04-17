@@ -1,11 +1,14 @@
 // src/adapters/outgoing/sqlite_repository.rs
 use async_trait::async_trait;
+use chrono::NaiveDate;
 use sqlx::Row;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::core::application::ports::{EmployeeRepository, AbsenceRepository};
-use crate::core::domain::entities::{DemandeConge, Employe};
+use crate::core::application::ports::{
+    AbsenceRepository, EmployeeRepository, HeuresSuppRepository,
+};
+use crate::core::domain::entities::{ChoixEmploye, DemandeConge, Employe, HeuresSupplementaires};
 use crate::core::domain::error::ErreurMetier;
 
 pub struct SqliteRepository {
@@ -26,7 +29,7 @@ impl SqliteRepository {
 impl EmployeeRepository for SqliteRepository {
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Employe>, ErreurMetier> {
         let result = sqlx::query(
-            "SELECT id, nom, prenom, quota_urgence_familiale FROM employes WHERE id = ?",
+            "SELECT id, nom, prenom, quota_urgence_familiale, quota_conges, quota_rtt FROM employes WHERE id = ?",
         )
         .bind(id.to_string())
         .fetch_optional(&self.pool)
@@ -42,7 +45,9 @@ impl EmployeeRepository for SqliteRepository {
                 id: Uuid::parse_str(&id_str).unwrap(),
                 nom: row.get("nom"),
                 prenom: row.get("prenom"),
-                quota_urgence_familiale: row.get::<i64, _>("quota_urgence_familiale") as u32,
+                quota_urgence_familiale: row.get::<i64, _>("quota_urgence_familiale") as f32,
+                quota_conges: row.get::<i64, _>("quota_conges") as f32,
+                quota_rtt: row.get::<i64, _>("quota_rtt") as f32,
             }))
         } else {
             Ok(None)
@@ -53,16 +58,21 @@ impl EmployeeRepository for SqliteRepository {
         // "Upsert" : Insère, ou met à jour si l'ID existe déjà (pratique pour le quota !)
         sqlx::query(
             r#"
-            INSERT INTO employes (id, nom, prenom, quota_urgence_familiale)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO employes (id, nom, prenom, quota_urgence_familiale, quota_conges, quota_rtt)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET 
                 quota_urgence_familiale = excluded.quota_urgence_familiale
+                quota_conges = excluded.quota_conges,
+                quota_rtt = excluded.quota_rtt
+                
             "#,
         )
         .bind(employe.id.to_string())
         .bind(&employe.nom)
         .bind(&employe.prenom)
-        .bind(employe.quota_urgence_familiale as i64) // SQLite préfère le i64
+        .bind(employe.quota_urgence_familiale as i64)
+        .bind(employe.quota_conges as i64)
+        .bind(employe.quota_rtt as i64)
         .execute(&self.pool)
         .await
         .map_err(|e| {
@@ -74,7 +84,7 @@ impl EmployeeRepository for SqliteRepository {
     }
 
     async fn get_all(&self) -> Result<Vec<Employe>, ErreurMetier> {
-        let rows = sqlx::query("SELECT id, nom, prenom, quota_urgence_familiale FROM employes")
+        let rows = sqlx::query("SELECT id, nom, prenom, quota_urgence_familiale, quota_conges, quota_rtt FROM employes")
             .fetch_all(&self.pool)
             .await
             .map_err(|e| {
@@ -89,7 +99,9 @@ impl EmployeeRepository for SqliteRepository {
                 id: Uuid::parse_str(&id_str).unwrap(),
                 nom: row.get("nom"),
                 prenom: row.get("prenom"),
-                quota_urgence_familiale: row.get::<i64, _>("quota_urgence_familiale") as u32,
+                quota_urgence_familiale: row.get::<i64, _>("quota_urgence_familiale") as f32,
+                quota_conges: row.get::<i64, _>("quota_conges") as f32,
+                quota_rtt: row.get::<i64, _>("quota_rtt") as f32,
             });
         }
         Ok(employes)
@@ -150,5 +162,99 @@ impl AbsenceRepository for SqliteRepository {
 
         println!("💾 Congé sauvegardé dans SQLite !");
         Ok(())
+    }
+}
+
+#[async_trait]
+impl HeuresSuppRepository for SqliteRepository {
+    async fn sauver(&self, hs: HeuresSupplementaires) -> Result<(), ErreurMetier> {
+        let id_str = hs.id.to_string();
+        let id_employe_str = hs.id_employe.to_string();
+        let date_str = hs.date.to_string();
+
+        // On convertit l'Enum en texte pour SQLite
+        let choix_str = match hs.choix {
+            ChoixEmploye::Paiement => "Paiement",
+            ChoixEmploye::Recuperation => "Recuperation",
+        };
+
+        // L'UPSERT SQLite (INSERT ou UPDATE si l'ID existe déjà)
+        sqlx::query(
+            r#"
+            INSERT INTO heures_supplementaires (id, id_employe, heures, date, choix, validation_manager)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT(id) DO UPDATE SET
+                heures = excluded.heures,
+                date = excluded.date,
+                choix = excluded.choix,
+                validation_manager = excluded.validation_manager
+            "#
+        )
+        .bind(id_str)
+        .bind(id_employe_str)
+        .bind(hs.heures)
+        .bind(date_str)
+        .bind(choix_str)
+        .bind(hs.validation_manager)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            println!("Erreur DB (Sauvegarde HS) : {:?}", e);
+            ErreurMetier::EmployeIntrouvable // Remplace par une vraie erreur DB si tu en as une dans ton Enum
+        })?;
+
+        Ok(())
+    }
+
+    async fn trouver_par_id(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<HeuresSupplementaires>, ErreurMetier> {
+        let id_str = id.to_string();
+
+        // sqlx::query_as est parfois capricieux avec les Enums, on utilise query() et on map manuellement
+        let row = sqlx::query(
+            "SELECT id, id_employe, heures, date, choix, validation_manager FROM heures_supplementaires WHERE id = $1"
+        )
+        .bind(id_str)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|_| ErreurMetier::EmployeIntrouvable)?; // Idem, utilise une erreur générique
+
+        if let Some(row) = row {
+            use sqlx::Row; // Nécessaire pour faire row.get()
+
+            // Reconstitution des types depuis les chaînes SQLite
+            let hs_id = Uuid::parse_str(row.get("id")).unwrap();
+            let emp_id = Uuid::parse_str(row.get("id_employe")).unwrap();
+            let date = NaiveDate::parse_from_str(row.get("date"), "%Y-%m-%d").unwrap();
+
+            let choix_str: String = row.get("choix");
+            let choix = if choix_str == "Paiement" {
+                ChoixEmploye::Paiement
+            } else {
+                ChoixEmploye::Recuperation
+            };
+
+            Ok(Some(HeuresSupplementaires {
+                id: hs_id,
+                id_employe: emp_id,
+                heures: row.get("heures"),
+                date,
+                choix,
+                validation_manager: row.get("validation_manager"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn lister_par_employe(
+        &self,
+        _id_employe: Uuid,
+    ) -> Result<Vec<HeuresSupplementaires>, ErreurMetier> {
+        // Je te laisse celle-ci en exercice si tu en as besoin plus tard !
+        // C'est exactement comme trouver_par_id, mais avec .fetch_all() au lieu de .fetch_optional()
+        Ok(vec![])
     }
 }

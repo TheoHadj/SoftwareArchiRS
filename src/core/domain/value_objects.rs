@@ -1,5 +1,5 @@
 use crate::core::domain::error::ErreurMetier;
-use chrono::{Datelike, NaiveDate, Weekday, Days};
+use chrono::{Datelike, Days, NaiveDate, Weekday};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -76,7 +76,6 @@ impl Periode {
         self.date_fin
     }
 
-
     pub fn calculer_jours_reels(&self, jours_feries: &[NaiveDate]) -> f32 {
         let mut total = 0.0;
         let mut jour_courant = self.date_debut;
@@ -146,18 +145,18 @@ fn calculer_paques(annee: i32) -> NaiveDate {
 
 pub fn generer_jours_feries_france(annee: i32) -> Vec<NaiveDate> {
     let mut jours = vec![
-        NaiveDate::from_ymd_opt(annee, 1, 1).unwrap(),   
+        NaiveDate::from_ymd_opt(annee, 1, 1).unwrap(),
         NaiveDate::from_ymd_opt(annee, 5, 1).unwrap(),
         NaiveDate::from_ymd_opt(annee, 5, 8).unwrap(),
         NaiveDate::from_ymd_opt(annee, 7, 14).unwrap(),
-        NaiveDate::from_ymd_opt(annee, 8, 15).unwrap(),  
-        NaiveDate::from_ymd_opt(annee, 11, 1).unwrap(),  
-        NaiveDate::from_ymd_opt(annee, 11, 11).unwrap(), 
-        NaiveDate::from_ymd_opt(annee, 12, 25).unwrap(), 
+        NaiveDate::from_ymd_opt(annee, 8, 15).unwrap(),
+        NaiveDate::from_ymd_opt(annee, 11, 1).unwrap(),
+        NaiveDate::from_ymd_opt(annee, 11, 11).unwrap(),
+        NaiveDate::from_ymd_opt(annee, 12, 25).unwrap(),
     ];
 
     let paques = calculer_paques(annee);
-    jours.push(paques.checked_add_days(Days::new(1)).unwrap());  // Lundi de Pâques (+1 jour)
+    jours.push(paques.checked_add_days(Days::new(1)).unwrap()); // Lundi de Pâques (+1 jour)
     jours.push(paques.checked_add_days(Days::new(39)).unwrap()); // Ascension (+39 jours)
     jours.push(paques.checked_add_days(Days::new(50)).unwrap()); // Lundi de Pentecôte (+50 jours)
 

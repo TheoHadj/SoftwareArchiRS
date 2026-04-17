@@ -5,10 +5,7 @@ use axum::{
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
 use std::{env, sync::Arc};
-use tokio::net::TcpListener;
-use uuid::Uuid;
 
-// Déclaration de notre arborescence de modules
 mod core {
     pub mod domain {
         pub mod entities;
@@ -31,31 +28,29 @@ mod adapters {
 }
 
 use adapters::incoming::http_handlers::{
-    AppState, lister_employes_by_id_handler, lister_employes_handler, poser_conge_handler,
+    AppState, declarer_hs_handler, lister_employes_by_id_handler, lister_employes_handler,
+    lister_hs_by_employe_handler, poser_conge_handler, valider_hs_handler,
 };
-use adapters::outgoing::mock_repository::MockRepository;
-use adapters::outgoing::sqlite_repository::SqliteRepository;
-use core::application::ports::EmployeeRepository;
-use core::application::ports::AbsenceRepository;
-use core::application::services::AbsenceService;
-use core::domain::entities::Employe;
+use core::application::ports::{AbsenceRepository, EmployeeRepository, HeuresSuppRepository};
 
 #[tokio::main]
 async fn main() {
     println!("🚀 Démarrage du SIRH...");
 
-    // 1. Aiguillage via l'environnement (Par défaut : "false" -> on utilise SQLite)
+    // var d'env $env = true ==> sqlite X Mock V
     let use_mock = env::var("USE_MOCK").unwrap_or_else(|_| "false".to_string()) == "true";
 
     // 2. Préparation des variables qui vont tenir nos bases de données
     let employee_repo: Arc<dyn EmployeeRepository>;
     let abs_repo: Arc<dyn AbsenceRepository>;
+    let hs_repo: Arc<dyn HeuresSuppRepository>;
 
     if use_mock {
         println!("🛠️ MODE TEST : Base de données en mémoire (Mock)");
         let mock = Arc::new(adapters::outgoing::mock_repository::MockRepository::new());
         employee_repo = mock.clone();
-        abs_repo = mock;
+        abs_repo = mock.clone();
+        hs_repo = mock.clone();
     } else {
         println!("🛢️ MODE PRODUCTION : Connexion à SQLite...");
 
@@ -73,15 +68,19 @@ async fn main() {
         println!("🏗️ Vérification et création des tables...");
         sqlx::query(
             r#"
-            -- Table des employés
+            DROP TABLE IF EXISTS heures_supplementaires;
+            DROP TABLE IF EXISTS conges;
+            DROP TABLE IF EXISTS employes;
+
             CREATE TABLE IF NOT EXISTS employes (
                 id TEXT PRIMARY KEY,
                 nom TEXT NOT NULL,
                 prenom TEXT NOT NULL,
-                quota_urgence_familiale INTEGER NOT NULL
+                quota_urgence_familiale INTEGER NOT NULL,
+                quota_conges INTEGER NOT NULL,
+                quota_rtt INTEGER NOT NULL
             );
 
-            -- Table des congés (avec clé étrangère vers employes)
             CREATE TABLE IF NOT EXISTS conges (
                 id TEXT PRIMARY KEY,
                 id_employe TEXT NOT NULL,
@@ -90,10 +89,18 @@ async fn main() {
                 FOREIGN KEY (id_employe) REFERENCES employes(id)
             );
 
-            -- Insertion de notre employé de test (Jean Dupont)
-            -- S'il existe déjà (ON CONFLICT), on ne fait rien (DO NOTHING)
-            INSERT INTO employes (id, nom, prenom, quota_urgence_familiale) 
-            VALUES ('f098ab96-3799-4481-b0d5-d0c3bfe509b0', 'Dupont', 'Jean', 3)
+            CREATE TABLE IF NOT EXISTS heures_supplementaires (
+                id TEXT PRIMARY KEY,
+                id_employe TEXT NOT NULL,
+                heures REAL NOT NULL,
+                date TEXT NOT NULL,
+                choix TEXT NOT NULL,
+                validation_manager BOOLEAN NOT NULL CHECK (validation_manager IN (0, 1)),
+                FOREIGN KEY (id_employe) REFERENCES employes(id)
+            );
+
+            INSERT INTO employes (id, nom, prenom, quota_urgence_familiale, quota_conges, quota_rtt) 
+            VALUES ('f098ab96-3799-4481-b0d5-d0c3bfe509b0', 'Dupont', 'Jean', 3.0, 25.0, 0.0)
             ON CONFLICT(id) DO NOTHING;
             "#,
         )
@@ -106,22 +113,37 @@ async fn main() {
         let sqlite = Arc::new(adapters::outgoing::sqlite_repository::SqliteRepository::new(pool));
 
         employee_repo = sqlite.clone();
-        abs_repo = sqlite;
+        abs_repo = sqlite.clone();
+        hs_repo = sqlite.clone();
     }
 
-    // 3. On injecte les repositories choisis dans le service
-    let abs_service = Arc::new(core::application::services::AbsenceService::new(
-        employee_repo,
-        abs_repo
+    // Injection des repository dans service
+    let hs_service = Arc::new(core::application::services::HeuresSuppService::new(
+        employee_repo.clone(),
+        hs_repo.clone(),
     ));
 
-    let state = AppState { abs_service };
+    let abs_service = Arc::new(core::application::services::AbsenceService::new(
+        employee_repo.clone(),
+        abs_repo.clone(),
+    ));
 
-    // 4. Lancement du serveur Axum (Le reste de ton code ne bouge pas)
+    let state = AppState {
+        abs_service,
+        hs_service,
+    };
+
+    // 4. Lancement du serveur Axum
     let app = Router::new()
         .route("/conges", post(poser_conge_handler))
         .route("/employes", get(lister_employes_handler))
         .route("/employes/:id", get(lister_employes_by_id_handler))
+        .route("/heures-supp", post(declarer_hs_handler))
+        .route("/heures-supp/:id", post(valider_hs_handler))
+        .route(
+            "/employes/:id/heures-supp",
+            get(lister_hs_by_employe_handler),
+        )
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")

@@ -4,15 +4,30 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::core::application::services::AbsenceService;
+use crate::core::application::services::{AbsenceService, HeuresSuppService};
+use crate::core::domain::entities::{ChoixEmploye, HeuresSupplementaires};
 use crate::core::domain::value_objects::{MomentDebut, MomentFin, Periode, TypeAbsence};
 
-// Le DTO pour un seul congé
+// --------------------------------------------------------
+// Dependency Injection
+// --------------------------------------------------------
+
+#[derive(Clone)]
+pub struct AppState {
+    pub abs_service: Arc<AbsenceService>,
+    pub hs_service: Arc<HeuresSuppService>,
+}
+
+// --------------------------------------------------------
+// Les DTO
+// --------------------------------------------------------
+/// Ce que le client envoie dans le body de sa requête POST
+
 #[derive(Serialize)]
 pub struct CongeResponseDto {
     pub id: Uuid,
     pub type_absence: TypeAbsence,
-    pub periode: Periode, // On peut renvoyer la période entière, elle implémente déjà Serialize !
+    pub periode: Periode,
 }
 
 // Le DTO complet de la page de profil
@@ -21,22 +36,12 @@ pub struct EmployeDetailResponseDto {
     pub id: Uuid,
     pub nom: String,
     pub prenom: String,
+    pub quota_rtt: f32,
+    pub quota_conges: f32,
+    pub quota_urgence_familiale: f32,
     pub conges: Vec<CongeResponseDto>,
 }
-// --------------------------------------------------------
-// L'État de l'Application (Dependency Injection)
-// --------------------------------------------------------
-/// Cette structure va contenir notre Service. Elle sera partagée
-/// à travers toutes nos routes Axum.
-#[derive(Clone)]
-pub struct AppState {
-    pub abs_service: Arc<AbsenceService>,
-}
 
-// --------------------------------------------------------
-// Les DTOs (Data Transfer Objects)
-// --------------------------------------------------------
-/// Ce que le client envoie dans le body de sa requête POST
 #[derive(Deserialize)]
 pub struct PoserCongeRequestDto {
     pub id_employe: Uuid,
@@ -47,7 +52,6 @@ pub struct PoserCongeRequestDto {
     pub type_absence: TypeAbsence,
 }
 
-/// Ce que l'API renvoie en cas de succès
 #[derive(Serialize)]
 pub struct PoserCongeResponseDto {
     pub id_demande: Uuid,
@@ -55,14 +59,36 @@ pub struct PoserCongeResponseDto {
     pub message: String,
 }
 
+#[derive(Deserialize)]
+pub struct DeclarerHeuresSuppDto {
+    pub id_employe: Uuid,
+    pub heures: f32,
+    pub date: NaiveDate,
+    pub choix: ChoixEmploye,
+}
+
+#[derive(Serialize)]
+pub struct HeuresSuppResponseDto {
+    pub id: Uuid,
+    pub message: String,
+}
+
+#[derive(Serialize)]
+pub struct EmployeResponseDto {
+    pub id: Uuid,
+    pub nom: String,
+    pub prenom: String,
+    // On peut cacher des infos internes comme le quota si on veut !
+}
+
 // --------------------------------------------------------
-// Le Contrôleur (Handler)
+// Handlers
 // --------------------------------------------------------
+
 pub async fn poser_conge_handler(
     State(state): State<AppState>,
     Json(payload): Json<PoserCongeRequestDto>,
 ) -> impl IntoResponse {
-    // 1. Transformation du DTO en Objet de Valeur (Validation de 1er niveau)
     let periode_result = Periode::nouvelle(
         payload.date_debut,
         payload.moment_debut,
@@ -78,7 +104,6 @@ pub async fn poser_conge_handler(
 
     println!("Période : {:?}", periode);
 
-    // 2. Appel du Cas d'Utilisation (Le Service)
     let resultat_service = state
         .abs_service
         .poser_un_conge(payload.id_employe, periode, payload.type_absence)
@@ -86,14 +111,13 @@ pub async fn poser_conge_handler(
 
     println!("result svc : {:?}", resultat_service);
 
-    // 3. Gestion de la réponse (Traduction du Domaine vers le Web)
     match resultat_service {
         Ok(demande) => {
             println!("OK match res");
 
             let response = PoserCongeResponseDto {
                 id_demande: demande.0.id,
-                jours_deduits : demande.1,
+                jours_deduits: demande.1,
                 message: "Demande de congé enregistrée avec succès.".to_string(),
             };
             (StatusCode::CREATED, Json(response)).into_response()
@@ -106,16 +130,7 @@ pub async fn poser_conge_handler(
         }
     }
 }
-// 1. Le DTO (Ce qu'on va renvoyer en JSON)
-#[derive(Serialize)]
-pub struct EmployeResponseDto {
-    pub id: Uuid,
-    pub nom: String,
-    pub prenom: String,
-    // On peut cacher des infos internes comme le quota si on veut !
-}
 
-// 2. Le Contrôleur
 pub async fn lister_employes_handler(State(state): State<AppState>) -> impl IntoResponse {
     match state.abs_service.lister_employes().await {
         Ok(employes) => {
@@ -159,6 +174,9 @@ pub async fn lister_employes_by_id_handler(
                 id: employe.id,
                 nom: employe.nom,
                 prenom: employe.prenom,
+                quota_rtt: employe.quota_rtt,
+                quota_conges: employe.quota_conges,
+                quota_urgence_familiale: employe.quota_urgence_familiale,
                 conges: conges_dto,
             };
 
@@ -166,5 +184,62 @@ pub async fn lister_employes_by_id_handler(
         }
         Ok(None) => (StatusCode::NOT_FOUND, "Employé introuvable").into_response(),
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Erreur serveur").into_response(),
+    }
+}
+
+pub async fn declarer_hs_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<DeclarerHeuresSuppDto>,
+) -> impl IntoResponse {
+    let hs = HeuresSupplementaires::declarer(
+        payload.id_employe,
+        payload.heures,
+        payload.date,
+        payload.choix,
+    );
+    let id: Uuid = hs.id;
+
+    match state.hs_service.declarer(hs).await {
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json(HeuresSuppResponseDto {
+                id: id,
+                message: "Déclaration d'heures supplémentaires enregistrée.".to_string(),
+            }),
+        )
+            .into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
+}
+
+pub async fn valider_hs_handler(
+    State(state): State<AppState>,
+    Path(id_hs): Path<Uuid>,
+) -> impl IntoResponse {
+    match state.hs_service.valider_et_appliquer(id_hs).await {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(HeuresSuppResponseDto {
+                id: id_hs,
+                message: "Heures supplémentaires validées et appliquées au solde.".to_string(),
+            }),
+        )
+            .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+pub async fn lister_hs_by_employe_handler(
+    State(state): State<AppState>,
+    Path(id_employe): Path<Uuid>,
+) -> impl IntoResponse {
+    match state.hs_service.lister_par_employe(id_employe).await {
+        Ok(liste_hs) => (
+            StatusCode::OK,
+            Json(liste_hs), // On renvoie directement le vecteur en JSON
+        )
+            .into_response(),
+
+        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
     }
 }

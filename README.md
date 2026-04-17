@@ -1,67 +1,119 @@
-# 📅 Système de Gestion des Congés (SIRH)
+# 🚀 Projet SIRH - Architecture Hexagonale en Rust
 
-![Rust](https://img.shields.io/badge/language-Rust-orange.svg)
-![Axum](https://img.shields.io/badge/framework-Axum-blue.svg)
-![Architecture](https://img.shields.io/badge/architecture-Hexagonal-green.svg)
-![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
+Ce projet est une API backend robuste développée en **Rust**, destinée à la gestion des Ressources Humaines (SIRH). Il permet de gérer les employés, leurs quotas de congés, ainsi que la déclaration et la conversion des heures supplémentaires en RTT.
 
-## 👤 Identification
-- **Apprenant** : [Ton Nom / Prénom]
-- **Formation** : EPSI Ingénierie 1 EISI
-- **Intervenant GitHub** : `3rgo`
+Il a été conçu en respectant les principes de l'**Architecture Hexagonale** (Ports et Adaptateurs), garantissant un code testable, évolutif et indépendant des technologies d'infrastructure.
+
+Dislcaimer : Rust n'a pas à proprement parler de classe : les données et les méthodes sont strictement séparées : Les structs et leur implémentation, ce qui suit exactement les recommandations du DDD.
 
 ---
 
-## 🎯 Présentation du Projet
-Ce projet est une **API REST** de gestion de ressources humaines (SIRH) spécialisée dans les congés et les heures supplémentaires. Il a été conçu pour mettre en pratique les principes de la **Clean Architecture** et du **Domain Driven Design (DDD)** en Rust.
+## 🏗️ Architecture du Projet
 
-### Règles Métier Implémentées (Sujet E)
-- **Calcul des jours ouvrés** : Déduction automatique des week-ends et jours fériés lors de la pose d'un congé.
-- **Urgence Familiale** : Dérogation aux règles d'anticipation habituelles pour les motifs impérieux.
-- **Gestion des Heures Sup'** : Système de choix entre paiement ou récupération, soumis à validation managériale.
+Le code est organisé en couches. La règle d'or est que les dépendances pointent toujours vers l'intérieur (le domaine métier), qui reste pur et isolé de la technique.
 
----
+### 1. Le Cœur (Core / Domaine)
+C'est le centre de l'application, agnostique du web ou des bases de données.
+* **Domain (`core::domain`)** : Contient les entités pures (`Employe`, `HeuresSupplementaires`) et les erreurs métier (`ErreurMetier`).
+* **Application (`core::application`)** : Coordonne les cas d'utilisation.
+    * **Ports** : Traits Rust définissant les contrats que l'infrastructure doit remplir (`EmployeeRepository`, `HeuresSuppRepository`).
+    * **Services** : Orchestrent la logique (`AbsenceService`, `HeuresSuppService`).
 
-## 🏗️ Architecture Technique
-L'application repose sur une **Architecture Hexagonale (Ports & Adapters)** permettant une isolation totale du domaine métier.
-
-### 1. Domain Driven Design (DDD)
-Conformément au barème, le domaine contient :
-- **3 Entités** : `Employee`, `LeaveRequest`, `OvertimeDeclaration`.
-- **2 Value Objects** : 
-    - `DateRange` : Responsable de la cohérence temporelle et du calcul des jours réels.
-    - `LeaveType` : Enumération riche portant les règles spécifiques à chaque type d'absence.
-
-### 2. Design Patterns
-- **Repository Pattern** : Abstraction de la persistance via des `Traits`. La base est **interchangeable** entre **SQLite** (via SQLx) et un stockage **Fichier JSON**.
-- **Strategy Pattern** : Injection de la logique de calendrier (`HolidayStrategy`) pour le calcul des jours fériés.
-
-### 3. Testabilité (Mocks & Stubs)
-- **Stub** : Simulation d'un calendrier fixe pour garantir la répétabilité des tests de durée.
-- **Mock** : Vérification du comportement des services d'infrastructure lors de la validation des heures supplémentaires.
+### 2. Les Adaptateurs (Adapters / Infrastructure)
+Ils font le pont entre le monde extérieur et le métier.
+* **Incoming (HTTP)** : API REST avec le framework **Axum**. Réceptionne le JSON, appelle les Services, et renvoie les réponses formatées.
+* **Outgoing (Persistance)** : 
+    * **SQLite** : Persistance réelle avec **SQLx**. Gère le schéma, les jointures et les `UPSERT`.
+    * **Mock** : Base de données en mémoire via des `HashMap` protégées par des `Arc<Mutex<...>>` pour le développement et les tests.
 
 ---
 
-## 💻 Aperçu du Code (Rust)
+## ✨ Fonctionnalités implémentées
 
-### Modélisation du Domaine (Value Object)
-```rust
-pub struct DateRange {
-    start: NativeDate,
-    end: NativeDate,
+* **Profils Employés** : Consultation des quotas (Congés, RTT, Urgences familiales).
+* **Heures Supplémentaires** : 
+    * Déclaration (Paiement ou Récupération).
+    * Validation par le manager.
+    * **Logique Métier** : Conversion automatique des heures validées en jours de RTT (7h = 1j) ajoutés au solde de l'employé.
+
+---
+
+## 🛠️ Installation et Lancement
+
+### 1. Préparation
+L'application crée automatiquement une base SQLite `mon_sirh.db` au premier lancement avec un employé de test (**Jean Dupont**).
+
+### 2. Lancement (Mode SQLite par défaut)
+```bash
+cargo run
+```
+
+### 3. Lancement (Mode Mock - En mémoire)
+```bash
+# Windows (PowerShell)
+$env:USE_MOCK="true"; cargo run
+
+# Linux / MacOS
+USE_MOCK=true cargo run
+```
+
+---
+
+## 🧪 Guide de Test (API)
+
+### Fichiers de test recommandés
+Crée ces fichiers à la racine de ton projet pour simplifier tes appels `curl`.
+
+**test_hs.json**
+```json
+{
+    "id_employe": "f098ab96-3799-4481-b0d5-d0c3bfe509b0",
+    "heures": 7.0,
+    "date": "2026-04-17",
+    "choix": "Recuperation"
 }
+```
 
-impl DateRange {
-    pub fn new(start: NativeDate, end: NativeDate) -> Result<Self, DomainError> {
-        if end < start { return Err(DomainError::InvalidPeriod); }
-        Ok(Self { start, end })
-    }
+**test_conge.json**
+```json
+{
+  "id_employe": "f098ab96-3799-4481-b0d5-d0c3bfe509b0",
+  "date_debut": "2026-05-1",
+  "moment_debut": "Matin",
+  "date_fin": "2026-05-8",
+  "moment_fin": "Soir",
+  "type_absence": "CongePaye"
+}
+```
 
-    // Calcul métier pur : ignore les week-ends
-    pub fn working_days(&self) -> u32 {
-        self.start.iter_days()
-            .take_while(|&d| d <= self.end)
-            .filter(|&d| d.weekday().number_from_monday() <= 5)
-            .count() as u32
-    }
-}```
+### Commandes de test (Scénario complet)
+
+1. **Vérifier l'état de l'employé :**
+   ```bash
+   curl -X GET http://127.0.0.1:3000/employes/f098ab96-3799-4481-b0d5-d0c3bfe509b0
+   ```
+
+2. **Déclarer des Heures Supplémentaires :**
+   ```bash
+   curl -X POST http://127.0.0.1:3000/heures-supp -H "Content-Type: application/json" -d @test_hs.json
+   ```
+   *(Note : Copie l'ID `"id":"..."` reçu dans la réponse).*
+
+3. **Valider les Heures (Manager) :**
+   ```bash
+   # Remplace <ID_HS> par l'ID reçu à l'étape précédente
+   curl -X POST http://127.0.0.1:3000/heures-supp/<ID_HS>/valider
+   ```
+
+4. **Vérifier le gain de RTT :**
+   ```bash
+   curl -X GET http://127.0.0.1:3000/employes/f098ab96-3799-4481-b0d5-d0c3bfe509b0
+   ```
+   *(Le champ `quota_rtt` doit être passé de 0.0 à 1.0).*
+
+5. **Lister toutes les déclarations de l'employé :**
+   ```bash
+   curl -X GET http://127.0.0.1:3000/employes/f098ab96-3799-4481-b0d5-d0c3bfe509b0/heures-supp
+   ```
+
+***

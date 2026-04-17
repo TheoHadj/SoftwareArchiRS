@@ -22,6 +22,9 @@ pub enum ErreurMetier {
     #[error("Employé introuvable")]
     EmployeIntrouvable,
 
+    #[error("Heures supplémentaire est introuvable")]
+    HsIntrouvable,
+
     #[error("EngineError")]
     EngineError,
 }
