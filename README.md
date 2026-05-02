@@ -116,4 +116,202 @@ Créer ces fichiers à la racine de ton projet pour simplifier les appels `curl`
    curl -X GET http://127.0.0.1:3000/employes/f098ab96-3799-4481-b0d5-d0c3bfe509b0/heures-supp
    ```
 
+
+
+   ## 1. Architecture Clean Code
+Visualisation de la structure des dossiers et de la séparation des responsabilités.
+
+```mermaid
+graph TD
+    %% Dossier Racine
+    Root[src/] --> Main[main.rs - Point d'entrée]
+    Root --> Domain[domain/ - Coeur métier pur]
+    Root --> App[application/ - Cas d'utilisation]
+    Root --> Infra[infrastructure/ - Détails techniques]
+    Root --> Pres[presentation/ - API REST Axum]
+
+    %% Domaine
+    Domain --> Entities[entities/ - Employee, LeaveRequest, Overtime]
+    Domain --> VOs[value_objects/ - DateRange, LeaveType]
+    Domain --> Repos[repositories/ - Traits/Interfaces des repos]
+    Domain --> Services[services/ - Logique de calcul pure]
+
+    %% Application
+    App --> UseCases[services/ - Orchestration des actions]
+
+    %% Infrastructure
+    Infra --> Persistence[persistence/]
+    Persistence --> SQLite[sqlite/ - Implémentation SQLx]
+    Persistence --> FileSys[file/ - Implémentation JSON/Fichier]
+
+    %% Présentation
+    Pres --> Handlers[handlers/ - Contrôleurs Axum]
+    Pres --> DTOs[dtos/ - Objets JSON Input/Output]
+
+    style Domain fill:#ddf9f,stroke:#333,stroke-width:2px
+    style App fill:#ddbbf,stroke:#333,stroke-width:1px
+    style Infra fill:#dddfd,stroke:#333,stroke-width:1px
+    style Pres fill:#ddffd,stroke:#333,stroke-width:1px
+```
+
+## 2. Architecture Hexagonale (Ports & Adaptateurs)
+Représentation des flux entre les adaptateurs et le cœur de l'application.
+
+```mermaid
+graph LR
+    subgraph "Adaptateurs Entrants (Web)"
+        API["Axum Handler\n(POST /conges)"]
+        DTO["PoserCongeRequestDto"]
+    end
+
+    subgraph "Cœur de l'Application (L'Hexagone)"
+        subgraph "Application"
+            Service["LeaveService\n(Use Case)"]
+            PortLeave{"« Port »\nLeaveRepository"}
+            PortEmp{"« Port »\nEmployeeRepository"}
+        end
+        
+        subgraph "Domaine"
+            Entites["Entités\n(DemandeConge, Employe)"]
+            VO["Objets de Valeur\n(Periode, Moment)"]
+        end
+    end
+
+    subgraph "Adaptateurs Sortants (Persistance)"
+        Mock["MockRepository\n(En mémoire)"]
+        SQLite["SqliteRepository\n(SQLx)"]
+    end
+
+    %% Flux d'exécution (Entrant)
+    API -->|Valide DTO et appelle| Service
+    
+    %% Règle de dépendance du DDD
+    Service -->|Orchestre| Entites
+    Entites -->|Composé de| VO
+
+    %% Injection de dépendances (Ports et Adaptateurs)
+    Service -->|Utilise| PortLeave
+    Service -->|Utilise| PortEmp
+    
+    Mock -.->|Implémente| PortEmp
+    Mock -.->|Implémente| PortLeave
+    SQLite -.->|Implémente| PortLeave
+
+    classDef core fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef adapter fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    class Service,PortLeave,PortEmp,Entites,VO core;
+    class API,DTO,Mock,SQLite adapter;
+```
+
+## 3. Diagramme de Classes
+Détail des entités et des objets de valeur.
+
+```mermaid
+classDiagram
+    %% Entités Principales
+    class Employe {
+        +id: Uuid
+        +nom: String
+        +prenom: String
+        +quota_urgence_familiale: f32
+        +quota_conges: f32
+        +quota_rtt: f32
+        +consommer_quota_urgence(): Result
+        +modifier_quota(jours: f32, type_absence: TypeAbsence, ajout: bool)
+    }
+
+    class DemandeConge {
+        +id: Uuid
+        +poser(employe: Employe, periode: Periode, type_absence: TypeAbsence, aujourd_hui: NaiveDate): Result$
+    }
+
+    class HeuresSupplementaires {
+        +id: Uuid
+        +heures: f32
+        +date: NaiveDate
+        +validation_manager: bool
+        +declarer(id_employe: Uuid, heures: f32, date: NaiveDate, choix: ChoixEmploye): HeuresSupplementaires$
+        +valider_manager_direct()
+    }
+
+    %% Objets de Valeur et Énumérations
+    class ChoixEmploye {
+        <<enumeration>>
+        Paiement
+        Recuperation
+    }
+
+    class TypeAbsence {
+        <<enumeration>>
+        CongePaye
+        RTT
+        UrgenceFamiliale
+    }
+
+    class Periode {
+        <<Value Object>>
+        +date_debut: NaiveDate
+        +date_fin: NaiveDate
+        +calculer_jours_reels(): f32
+    }
+
+    %% Relations Structurelles (Agrégation et Composition)
+    DemandeConge *-- Periode : contient
+    
+    %% Relations d'Association avec Cardinalités
+    Employe "1" --> "*" DemandeConge : effectue
+    Employe "1" --> "*" HeuresSupplementaires : déclare
+    
+    DemandeConge "*" --> "1" TypeAbsence : est de type
+    HeuresSupplementaires "*" --> "1" ChoixEmploye : implique
+    
+    %% Relations de Dépendance (Utilisation temporaire dans les méthodes)
+    Employe ..> TypeAbsence : utilise pour maj quota
+```
+
+## 4. Diagramme de Séquence (Poser un congé)
+Flux d'exécution complet lors d'une requête HTTP.
+
+```mermaid
+sequenceDiagram
+    actor Client HTTP
+    participant Axum as Handler (Axum)
+    participant Service as LeaveService
+    participant Domaine as Entités (Domaine)
+    participant Repo as BDD (Mock / SQLite)
+
+    Client HTTP->>Axum: POST /conges (JSON)
+    activate Axum
+    
+    Axum->>Axum: Parse le DTO
+    Axum->>Domaine: Periode::nouvelle(...)
+    Domaine-->>Axum: Ok(Periode) ou Erreur
+    
+    Axum->>Service: poser_un_conge(id, Periode, type)
+    activate Service
+    
+    Service->>Repo: find_by_id(id_employe)
+    Repo-->>Service: Retourne l'Employé
+    
+    Service->>Domaine: DemandeConge::poser(Employe, Periode, ...)
+    activate Domaine
+    Note over Domaine: Vérification (Anticipation,<br/>Quota d'urgence)
+    Domaine-->>Service: Retourne la DemandeConge
+    deactivate Domaine
+    
+    Service->>Repo: save(Employe) (Mise à jour quota)
+    Service->>Repo: save(DemandeConge)
+    Repo-->>Service: Ok()
+    
+    Service-->>Axum: Ok(DemandeConge)
+    deactivate Service
+    
+    Note over Axum: Calcul des jours à déduire<br/>pour l'affichage
+    Axum->>Domaine: periode.calculer_jours_reels()
+    Domaine-->>Axum: f32 (ex: 2.5 jours)
+    
+    Axum-->>Client HTTP: 201 Created (JSON Response)
+    deactivate Axum
+```
+
 ***
