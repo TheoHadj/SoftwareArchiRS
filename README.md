@@ -197,9 +197,12 @@ graph LR
     Mock -.->|Implémente| PortLeave
     SQLite -.->|Implémente| PortLeave
 
-    classDef core fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef adapter fill:#fff3e0,stroke:#e65100,stroke-width:2px;
-    class Service,PortLeave,PortEmp,Entites,VO core;
+    classDef domain fill:#ddf9f,stroke:#333,stroke-width:2px;
+    classDef app fill:#ddbbf,stroke:#333,stroke-width:2px;
+    classDef adapter fill:#ddffd,stroke:#333,stroke-width:2px;
+
+    class Entites,VO domain;
+    class Service,PortLeave,PortEmp app;
     class API,DTO,Mock,SQLite adapter;
 ```
 
